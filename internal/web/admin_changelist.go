@@ -1278,7 +1278,7 @@ func (cl *changeList) resultRows() ([]any, error) {
 				} else {
 					repr = cl.a.displayForField(v, f, cl.empty)
 				}
-				if f.InternalType == "DateField" || f.InternalType == "DateTimeField" || f.InternalType == "ForeignKey" {
+				if f.InternalType == "DateField" || f.InternalType == "DateTimeField" || f.isFK() {
 					classes = append(classes, "nowrap")
 				}
 			default:
