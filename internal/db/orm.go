@@ -15,8 +15,9 @@ import (
 // tag; fields tagged `db:"-"` or without a tag are ignored.
 
 type colInfo struct {
-	name  string
-	index int
+	name    string
+	index   int
+	decimal bool // numeric columns are read as text so numeric(10,4) keeps "1.5000"
 }
 
 var colCache sync.Map // reflect.Type -> []colInfo
@@ -31,7 +32,11 @@ func columnsOf(t reflect.Type) []colInfo {
 		if tag == "" || tag == "-" {
 			continue
 		}
-		cols = append(cols, colInfo{name: tag, index: i})
+		ft := t.Field(i).Type
+		for ft.Kind() == reflect.Ptr {
+			ft = ft.Elem()
+		}
+		cols = append(cols, colInfo{name: tag, index: i, decimal: ft == reflect.TypeOf(Decimal{})})
 	}
 	colCache.Store(t, cols)
 	return cols
@@ -58,6 +63,9 @@ func Columns[T any](alias string) string {
 		parts[i] = Quote(c.name)
 		if alias != "" {
 			parts[i] = alias + "." + parts[i]
+		}
+		if c.decimal {
+			parts[i] += "::text"
 		}
 	}
 	return strings.Join(parts, ", ")

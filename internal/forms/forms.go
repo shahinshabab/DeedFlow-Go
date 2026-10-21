@@ -64,8 +64,13 @@ type Field struct {
 	Attrs         map[string]string
 	// RenderValue lets a password input show its value again.
 	RenderValue bool
-	// MinValueMsg overrides nothing; reserved for model-level validators.
-	Initial string
+	// ModelMax is the database range's upper bound: checked, but (unlike
+	// Max) not rendered as the input's max attribute, as in Django where
+	// it comes from the model field's validators.
+	ModelMax *int64
+	// IgnoreChange leaves the field out of HasChanged (an inline foreign key).
+	IgnoreChange bool
+	Initial      string
 }
 
 // Form is a set of fields, optionally bound to submitted data.
@@ -84,9 +89,11 @@ type Form struct {
 	EmptyPermitted bool
 	// Clean runs after the fields validated.
 	Clean func(f *Form)
-	// BaseClass is the CSS class for text-like widgets ("form-control").
-	hiddenExtra []hiddenField
-	validated   bool
+	// NoRequiredAttr leaves the HTML required attribute off (forms inside a
+	// formset, where an extra or deleted form may be left empty).
+	NoRequiredAttr bool
+	hiddenExtra    []hiddenField
+	validated      bool
 }
 
 type hiddenField struct{ name, value string }
@@ -174,28 +181,61 @@ func (f *Form) IsValid() bool {
 }
 
 // HasChanged reports whether the submitted data differs from the initial
-// values - what lets a formset ignore an untouched extra form.
+// values - what lets a formset ignore an untouched extra form. Values are
+// compared as Django does, after conversion ("10.5" equals 10.5000).
 func (f *Form) HasChanged() bool {
 	for _, fl := range f.Fields {
-		if fl.Disabled {
+		if fl.Disabled || fl.IgnoreChange {
 			continue
 		}
-		initial := f.Initial[fl.Name]
-		if initial == "" {
+		initial, ok := f.Initial[fl.Name]
+		if !ok {
 			initial = fl.Initial
 		}
 		submitted := f.Value(fl.Name)
-		if fl.Widget == Checkbox {
-			if (submitted != "") != (initial != "" && initial != "false" && initial != "False") {
+		if fl.Widget == Checkbox || fl.Kind == Bool {
+			on := func(v string) bool { return v != "" && v != "false" && v != "False" && v != "0" }
+			if on(submitted) != on(initial) {
 				return true
 			}
 			continue
 		}
-		if strings.TrimSpace(submitted) != strings.TrimSpace(initial) {
+		if fieldValueChanged(fl, initial, submitted) {
 			return true
 		}
 	}
 	return false
+}
+
+func fieldValueChanged(fl *Field, initial, submitted string) bool {
+	switch fl.Kind {
+	case Int, Decimal, Date:
+		sv, serr := fl.clean(submitted)
+		if serr != "" && strings.TrimSpace(submitted) != "" {
+			return true
+		}
+		iv, ierr := fl.clean(initial)
+		if ierr != "" && strings.TrimSpace(initial) != "" {
+			return true
+		}
+		return !sameValue(sv, iv)
+	}
+	return strings.TrimSpace(submitted) != strings.TrimSpace(initial)
+}
+
+func sameValue(a, b any) bool {
+	switch x := a.(type) {
+	case *int64:
+		y, _ := b.(*int64)
+		return (x == nil) == (y == nil) && (x == nil || *x == *y)
+	case *db.Decimal:
+		y, _ := b.(*db.Decimal)
+		return (x == nil) == (y == nil) && (x == nil || x.Cmp(*y) == 0)
+	case *time.Time:
+		y, _ := b.(*time.Time)
+		return (x == nil) == (y == nil) && (x == nil || x.Equal(*y))
+	}
+	return a == b
 }
 
 func (f *Form) fullClean() {
@@ -293,6 +333,9 @@ func (fl *Field) clean(raw string) (any, string) {
 		}
 		if fl.Max != nil && n > *fl.Max {
 			return (*int64)(nil), fmt.Sprintf("Ensure this value is less than or equal to %d.", *fl.Max)
+		}
+		if fl.ModelMax != nil && n > *fl.ModelMax {
+			return (*int64)(nil), fmt.Sprintf("Ensure this value is less than or equal to %d.", *fl.ModelMax)
 		}
 		return &n, ""
 	case Decimal:
@@ -419,6 +462,15 @@ func (f *Form) widgetHTML(fl *Field) string {
 	var b strings.Builder
 	class := attrs["class"]
 	delete(attrs, "class")
+	if fl.HelpText != "" {
+		attrs["aria-describedby"] = id + "_helptext"
+	}
+	if f.Bound {
+		f.fullClean()
+		if len(f.Errors[fl.Name]) > 0 && fl.Widget != HiddenInput {
+			attrs["aria-invalid"] = "true"
+		}
+	}
 	writeAttrs := func() {
 		keys := make([]string, 0, len(attrs))
 		for k := range attrs {
@@ -438,7 +490,7 @@ func (f *Form) widgetHTML(fl *Field) string {
 	}
 	switch fl.Widget {
 	case Select:
-		if fl.Required && !fl.Disabled {
+		if fl.Required && !fl.Disabled && !f.NoRequiredAttr {
 			attrs["required"] = ""
 		}
 		attrs["id"] = id
@@ -457,7 +509,7 @@ func (f *Form) widgetHTML(fl *Field) string {
 		}
 		b.WriteString("</select>")
 	case Textarea:
-		if fl.Required && !fl.Disabled {
+		if fl.Required && !fl.Disabled && !f.NoRequiredAttr {
 			attrs["required"] = ""
 		}
 		attrs["id"] = id
@@ -480,7 +532,7 @@ func (f *Form) widgetHTML(fl *Field) string {
 		if value != "" && value != "false" && value != "False" {
 			attrs["checked"] = ""
 		}
-		if fl.Required && !fl.Disabled {
+		if fl.Required && !fl.Disabled && !f.NoRequiredAttr {
 			attrs["required"] = ""
 		}
 		attrs["id"] = id
@@ -519,7 +571,7 @@ func (f *Form) widgetHTML(fl *Field) string {
 		if fl.Kind == Email {
 			typ = map[bool]string{true: typ, false: "email"}[fl.Widget == PasswordInput || fl.Widget == HiddenInput]
 		}
-		if fl.Required && !fl.Disabled && fl.Widget != HiddenInput {
+		if fl.Required && !fl.Disabled && fl.Widget != HiddenInput && !f.NoRequiredAttr {
 			attrs["required"] = ""
 		}
 		if fl.MaxLength > 0 {
@@ -527,7 +579,7 @@ func (f *Form) widgetHTML(fl *Field) string {
 		}
 		attrs["id"] = id
 		b.WriteString(fmt.Sprintf(`<input type="%s" name="%s"`, typ, esc(name)))
-		if value != "" || fl.Widget == HiddenInput {
+		if value != "" {
 			b.WriteString(fmt.Sprintf(` value="%s"`, esc(value)))
 		}
 		if class != "" {

@@ -70,3 +70,10 @@ func SubtypeTransactionCode(deedType, deedSubType string) string {
 	}
 	return ""
 }
+
+// IsKnownDeedType reports whether name is one of the everyday deed-type words
+// the portal mapping covers.
+func IsKnownDeedType(name string) bool {
+	_, ok := mappingFor(name)
+	return ok
+}
