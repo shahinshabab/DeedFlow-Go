@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}New Deed from PDF{% endblock %}
+{% block content %}
+<a href="{% url 'deeds:my_deeds' %}" class="back-link"><i class="bi bi-arrow-left"></i> My Deeds</a>
+<div class="page-header">
+  <div>
+    <h1>New deed from PDF</h1>
+    <p class="page-subtitle">Upload a deed PDF and it will be extracted, structured with AI, and handed to you for review. Everything stays editable and nothing is submitted anywhere automatically.</p>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" data-busy="Uploading…" data-new-deed>
+          {% csrf_token %}
+          <div class="btn-group w-100 mb-3" role="group" aria-label="How to submit this deed">
+            <input type="radio" class="btn-check" name="mode" id="mode_fresh" value="fresh" {% if mode != "existing" %}checked{% endif %}>
+            <label class="btn btn-outline-brand" for="mode_fresh"><i class="bi bi-plus-circle"></i> Fresh</label>
+            <input type="radio" class="btn-check" name="mode" id="mode_existing" value="existing" {% if mode == "existing" %}checked{% endif %}>
+            <label class="btn btn-outline-brand" for="mode_existing"><i class="bi bi-arrow-repeat"></i> Continue with existing token</label>
+          </div>
+          <p class="text-muted small mb-3" data-mode-hint="fresh">Fresh runs the full pipeline: submitting creates a new token on the portal.</p>
+          <p class="text-muted small mb-3" data-mode-hint="existing">For a token you already created on the portal. Submitting skips the registration page and fills every other page, presenter included, on that token. No new token is created.</p>
+          <label class="dropzone mb-3" for="pdf_file" data-dropzone>
+            <input type="file" id="pdf_file" name="pdf_file" accept="application/pdf" required>
+            <span class="dz-icon"><i class="bi bi-file-earmark-pdf"></i></span>
+            <span class="dz-title">Drop the deed PDF here, or click to browse</span>
+            <span class="dz-hint">PDF only, up to 25 MB</span>
+            <span class="dz-file"><i class="bi bi-paperclip"></i><span data-dz-name></span></span>
+          </label>
+          <div class="mb-3" data-mode-hint="existing">
+            <label class="form-label" for="token_number">Existing token number</label>
+            <input type="text" class="form-control" id="token_number" name="token_number" value="{{ token_number }}"
+                   placeholder="T10380594" autocomplete="off" pattern="\s*[Tt]\s*\d{6,}\s*"
+                   title="The token number as it shows on the portal, like T10380594">
+            <div class="form-text">It must be in My Token for your organization's portal login and still editable. That's checked on the portal before anything is changed.</div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button type="submit" class="btn btn-brand"><i class="bi bi-magic"></i> Upload &amp; process</button>
+            <span class="text-muted small" data-mode-hint="fresh">or</span>
+            <a href="{% url 'deeds:create' %}" class="btn btn-outline-secondary" data-mode-hint="fresh">Start a blank deed instead</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h2 class="section-title mb-3">What happens next</h2>
+        <div class="d-grid gap-3">
+          <div class="flow-step"><span class="num">1</span><div><strong>Text extraction</strong><span>Every page is read, including the property schedule tables.</span></div></div>
+          <div class="flow-step"><span class="num">2</span><div><strong>AI structuring</strong><span>Details are sorted into the seven deed sections.</span></div></div>
+          <div class="flow-step"><span class="num">3</span><div><strong>Your review</strong><span>You check and correct each step before submitting.</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}{% include "deeds/_dropzone_js.html" %}
+<script>
+  // Fresh / Continue with existing token: show what belongs to the chosen
+  // mode, and only ask for the token number when continuing one.
+  document.querySelectorAll("form[data-new-deed]").forEach(function (form) {
+    var token = form.querySelector("#token_number");
+    function refresh() {
+      var mode = form.querySelector("input[name=mode]:checked").value;
+      form.querySelectorAll("[data-mode-hint]").forEach(function (el) {
+        el.classList.toggle("d-none", el.dataset.modeHint !== mode);
+      });
+      token.required = mode === "existing";
+    }
+    form.querySelectorAll("input[name=mode]").forEach(function (r) { r.addEventListener("change", refresh); });
+    refresh();
+  });
+</script>
+{% endblock %}

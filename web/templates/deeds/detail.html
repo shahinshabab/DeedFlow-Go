@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}{% if deed.token_number %}{{ deed.token_number }}{% else %}Deed #{{ deed.id }}{% endif %}{% endblock %}
+{% block content %}
+<a href="{% url 'deeds:my_deeds' %}" class="back-link"><i class="bi bi-arrow-left"></i> My Deeds</a>
+
+<div class="card mb-3">
+  <div class="deed-hero">
+    <div>
+      <h1>
+        {% if deed.token_number %}Token {{ deed.token_number }}{% else %}Deed #{{ deed.id }}{% endif %}
+        {% include "_status_pill.html" %}
+        {% if deed.is_test %}<span class="test-pill">TEST</span>{% endif %}
+      </h1>
+      <div class="deed-meta">
+        {% if deed.presenter %}
+          <span><i class="bi bi-person"></i> {{ deed.presenter.name }}</span>
+          {% if deed.presenter.presenter_date %}<span><i class="bi bi-calendar3"></i> Presented {{ deed.presenter.presenter_date|date:"d M Y" }}</span>{% endif %}
+        {% endif %}
+        <span><i class="bi bi-clock-history"></i> Updated {{ deed.updated_at|date:"d M Y, H:i" }}</span>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      {% if deed.status == "submitting" %}
+        <a href="{% url 'deeds:submitting' deed.public_id %}" class="btn btn-brand">
+          <i class="bi bi-activity"></i> View submission progress
+        </a>
+      {% else %}
+        <a href="{% url 'deeds:wizard' deed.public_id %}" class="btn btn-outline-brand">
+          <i class="bi bi-pencil"></i> Edit deed
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if can_submit %}
+    <div class="next-step">
+      {% if has_portal_credential %}
+        <div class="d-flex align-items-center gap-3">
+          <span class="icon-tile sm"><i class="bi bi-cloud-upload"></i></span>
+          <div>
+            <div class="fw-semibold">{% if filling_token %}Ready to fill token {{ deed.token_number }}{% elif deed.token_number %}Resubmit your changes{% else %}Ready to submit{% endif %}</div>
+            <div class="small text-muted">
+              {% if filling_token %}Fills every page except registration on this existing portal token. No new token is created.{% elif deed.token_number %}Updates token {{ deed.token_number }} on the Registration Department portal.{% else %}Creates a new token on the Registration Department portal.{% endif %}
+            </div>
+          </div>
+        </div>
+        <form method="post" action="{% url 'deeds:submit' deed.public_id %}"
+              onsubmit="return confirm('{% if filling_token %}Fill token {{ deed.token_number }} on the portal now? Records already on its pages are deleted and entered again from this deed. This is a real submission, not a test.{% elif deed.token_number %}Send the edits to token {{ deed.token_number }} on the portal now?{% if pending_whole %} The pages listed as re-entered will have their records deleted on the portal and entered again.{% endif %}{% else %}Submit this deed to the Registration Department portal now? This is a real submission, not a test.{% endif %}');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-brand">
+            <i class="bi bi-send"></i>
+            {% if filling_token %}Fill token on portal{% elif deed.token_number %}Send edits to portal{% else %}Submit to portal{% endif %}
+          </button>
+        </form>
+      {% else %}
+        <div class="alert alert-warning mb-0 w-100">
+          <i class="alert-icon bi bi-key"></i>
+          <div>
+            Your organization has no Registration Department portal login yet.
+            {% if is_org_admin %}Add it on the <a href="{% url 'accounts:organization' %}">Organization</a> page before you can submit this deed.{% else %}Ask your organization's admin to add it before you can submit this deed.{% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% if deed.result_message %}
+  <div class="alert alert-{% if deed.status == 'completed' %}success{% elif deed.status == 'failed' %}danger{% else %}info{% endif %}">
+    <i class="alert-icon bi {% if deed.status == 'completed' %}bi-check-circle-fill{% elif deed.status == 'failed' %}bi-exclamation-octagon-fill{% else %}bi-info-circle-fill{% endif %}"></i>
+    <div>{{ deed.result_message }}</div>
+  </div>
+{% endif %}
+
+{% if pending_labels and deed.token_number and not filling_token %}
+  <div class="alert alert-warning">
+    <i class="alert-icon bi bi-pencil-square"></i>
+    <div>
+      <strong>Edited since the last submission:</strong> {{ pending_labels|join:", " }}.
+      {% if pending_rows %}
+        <div class="small mt-1">Updated one by one on the portal, each through its own row's edit: {{ pending_rows|join:", " }}.</div>
+      {% endif %}
+      {% if pending_whole %}
+        <div class="small mt-1">Re-entered as a whole (deleted on the portal and entered again): {{ pending_whole|join:", " }}.</div>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body pb-0 pt-0">
+    <div class="tabs-scroll">
+      <ul class="nav deed-tabs" role="tablist">
+        {% for tab in tabs %}
+          <li class="nav-item" role="presentation">
+            <button class="nav-link {% if forloop.first %}active{% endif %}" id="tab-{{ tab.key }}" data-bs-toggle="tab"
+                    data-bs-target="#pane-{{ tab.key }}" type="button" role="tab" aria-controls="pane-{{ tab.key }}"
+                    aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">
+              {{ tab.label }}
+              {% if tab.repeatable %}<span class="badge rounded-pill text-bg-light">{{ tab.forms|length }}</span>{% endif %}
+              {% if tab.pending and deed.token_number %}<span class="pending-dot" title="Edited - not on the portal yet"></span>{% endif %}
+            </button>
+          </li>
+        {% endfor %}
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-submission" data-bs-toggle="tab" data-bs-target="#pane-submission"
+                  type="button" role="tab" aria-controls="pane-submission" aria-selected="false">
+            <i class="bi bi-images"></i> Portal screenshots
+          </button>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="tab-content">
+    {% for tab in tabs %}
+      <div class="tab-pane fade {% if forloop.first %}show active{% endif %} card-body" id="pane-{{ tab.key }}" role="tabpanel" aria-labelledby="tab-{{ tab.key }}">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+          <div>
+            <h2 class="section-title d-flex align-items-center gap-2">
+              {{ tab.label }}
+              {% if tab.pending and deed.token_number %}<span class="status-pill s-ready_for_review">Edited - not on the portal yet</span>{% endif %}
+            </h2>
+            {% if tab.repeatable %}<p class="section-hint">{{ tab.forms|length }} entr{{ tab.forms|length|pluralize:"y,ies" }}</p>{% endif %}
+          </div>
+          {% if tab.editable %}
+            <a href="{% url 'deeds:wizard' deed.public_id %}?step={{ tab.step }}" class="btn btn-sm btn-outline-brand">
+              <i class="bi bi-pencil"></i> Edit {{ tab.label|lower }}
+            </a>
+          {% elif tab.key == "registration" and deed.token_number %}
+            <span class="meta-chip"><i class="bi bi-lock"></i> Fixed once the portal issued the token</span>
+          {% endif %}
+        </div>
+
+        <div class="readonly-form">
+          {% for form in tab.forms %}
+            {% if tab.repeatable %}
+              <div class="entry-card">
+                <div class="entry-head"><span class="entry-label">Entry {{ forloop.counter }}</span></div>
+                {% include "_form_fields.html" with form=form col_width=tab.col_width %}
+                <div class="pb-3"></div>
+              </div>
+            {% else %}
+              {% include "_form_fields.html" with form=form col_width=tab.col_width %}
+            {% endif %}
+          {% empty %}
+            <div class="empty-state py-4">
+              <span class="icon-tile"><i class="bi bi-inbox"></i></span>
+              <h3>Nothing entered yet</h3>
+              {% if tab.editable %}<a href="{% url 'deeds:wizard' deed.public_id %}?step={{ tab.step }}" class="btn btn-sm btn-outline-brand"><i class="bi bi-plus-lg"></i> Add {{ tab.label|lower }}</a>{% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+
+    <div class="tab-pane fade card-body" id="pane-submission" role="tabpanel" aria-labelledby="tab-submission">
+      {% if screenshots %}
+        <div class="shot-grid">
+          {% for shot in screenshots %}
+            <a href="{{ shot.url }}" target="_blank" rel="noopener">
+              <img src="{{ shot.url }}" alt="{{ shot.label }}" loading="lazy">
+              <div class="shot-caption">{{ shot.label }}</div>
+              <div class="shot-time">{{ shot.created_at|date:"d M, H:i" }}</div>
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state py-4">
+          <span class="icon-tile"><i class="bi bi-images"></i></span>
+          <h3>Not submitted to the portal yet</h3>
+          <p class="mb-0">Screenshots of each portal page appear here once the deed is submitted.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

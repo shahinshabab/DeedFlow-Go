@@ -308,6 +308,30 @@ func (a *App) wrap(name string, fn Handler) http.Handler {
 	})
 }
 
+// loadUser loads the session and user (no CSRF handling): for the websocket.
+func (c *Ctx) loadUser() bool {
+	a := c.App
+	if ck, err := c.R.Cookie(sessionCookie); err == nil && ck.Value != "" {
+		row, err := a.Store.LoadSession(c.Context(), ck.Value)
+		if err != nil {
+			return false
+		}
+		if row != nil {
+			c.Session = &Session{row: row}
+		}
+	}
+	if c.Session == nil {
+		c.Session = newSession()
+	}
+	if c.Session.row.UserID != nil {
+		u, err := a.Store.UserByID(c.Context(), *c.Session.row.UserID)
+		if err == nil && u.IsActive && c.Session.GetString("auth_hash") == authHash(a.Cfg.SecretKey, u) {
+			c.User = u
+		}
+	}
+	return true
+}
+
 // begin loads the session and user and enforces CSRF. It returns false when
 // it already answered.
 func (c *Ctx) begin() bool {

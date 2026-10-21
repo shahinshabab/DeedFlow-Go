@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Extract Preview{% endblock %}
+{% block content %}
+<a href="{% url 'deeds:test_dashboard' %}" class="back-link"><i class="bi bi-arrow-left"></i> Test Dashboard</a>
+<div class="page-header">
+  <div>
+    <div class="eyebrow">Test area</div>
+    <h1 class="mt-1">PDF Extraction Preview</h1>
+    <p class="page-subtitle">Upload a deed PDF to see exactly what the extraction pipeline reads from it, before any AI structuring happens. Pages without a table are combined into one text block; pages with a schedule/table are kept separate, each shown as its own table with a rendered image of that page.</p>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" data-busy="Extracting…" class="d-flex flex-column flex-md-row gap-3 align-items-md-center">
+      {% csrf_token %}
+      <label class="dropzone compact flex-grow-1 mb-0" for="pdf_file" data-dropzone>
+        <input type="file" id="pdf_file" name="pdf_file" accept="application/pdf" required>
+        <span class="dz-icon"><i class="bi bi-file-earmark-pdf"></i></span>
+        <span class="d-flex flex-column">
+          <span class="dz-title">Choose a deed PDF</span>
+          <span class="dz-hint">Drop it here or click to browse. Nothing is saved.</span>
+        </span>
+        <span class="dz-file ms-auto"><i class="bi bi-paperclip"></i><span data-dz-name></span></span>
+      </label>
+      <button type="submit" class="btn btn-brand btn-lg"><i class="bi bi-file-earmark-text"></i> Extract</button>
+    </form>
+  </div>
+</div>
+
+{% if result %}
+  <div class="card mb-3">
+    <div class="card-header justify-content-between flex-wrap gap-2">
+      <span><i class="bi bi-file-earmark-pdf text-brand"></i> {{ result.file_name }}</span>
+      <span class="meta-chips">
+        <span class="meta-chip"><i class="bi bi-files"></i> {{ result.page_count }} page(s)</span>
+        <span class="meta-chip"><i class="bi bi-text-paragraph"></i> {{ result.text_page_count }} text</span>
+        <span class="meta-chip"><i class="bi bi-table"></i> {{ result.table_pages|length }} schedule</span>
+        <span class="meta-chip"><i class="bi bi-geo"></i> {{ result.land_type|default:"land type not detected" }}</span>
+      </span>
+    </div>
+    <div class="card-body">
+      <h2 class="section-title mb-2">Combined text (all non-table pages)</h2>
+      <pre class="text-block">{{ result.combined_text }}</pre>
+    </div>
+  </div>
+
+  {% if result.table_pages %}
+    {% for tp in result.table_pages %}
+      <div class="card mb-3">
+        <div class="card-header">
+          Schedule &mdash; Page {{ tp.page_number }}
+          <span class="text-muted small">({{ tp.entries|length }} entr{{ tp.entries|length|pluralize:"y,ies" }})</span>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-lg-4">
+              {% if tp.image_base64 %}
+                <img src="data:image/png;base64,{{ tp.image_base64 }}" alt="Page {{ tp.page_number }} image" class="img-fluid border rounded">
+              {% else %}
+                <div class="text-muted small">Page image could not be rendered.</div>
+              {% endif %}
+            </div>
+            <div class="col-lg-8">
+              {% if tp.entries %}
+                {% for e in tp.entries %}
+                  {% if tp.entries|length > 1 %}<h3 class="h6 mt-2">Parcel {{ forloop.counter }}</h3>{% endif %}
+                  <div class="table-responsive mb-3">
+                    <table class="table table-sm table-bordered kv-table mb-0">
+                      <tbody>
+                        <tr><th class="text-nowrap">Schedule / Serial No.</th><td>{{ e.schedule_number }}</td></tr>
+                        <tr><th class="text-nowrap">District</th><td>{{ e.district }}</td></tr>
+                        <tr><th class="text-nowrap">Sub Registrar Office (SRO)</th><td>{{ e.sro }}</td></tr>
+                        <tr><th class="text-nowrap">Taluk</th><td>{{ e.taluk }}</td></tr>
+                        <tr><th class="text-nowrap">Village / Amsom</th><td>{{ e.village }}</td></tr>
+                        <tr><th class="text-nowrap">Desam</th><td>{{ e.desam }}</td></tr>
+                        <tr><th class="text-nowrap">Local body type</th><td>{{ e.local_body_type }}</td></tr>
+                        <tr><th class="text-nowrap">Local body / Ward name</th><td>{{ e.local_body_name }}</td></tr>
+                        <tr><th class="text-nowrap">Resurvey block No.</th><td>{{ e.resurvey_block }}</td></tr>
+                        <tr><th class="text-nowrap">Resurvey No.</th><td>{{ e.resurvey_number }}</td></tr>
+                        <tr><th class="text-nowrap">Resurvey sub-division No.</th><td>{{ e.resurvey_sub }}</td></tr>
+                        <tr><th class="text-nowrap">Old survey No.</th><td>{{ e.old_survey }}</td></tr>
+                        <tr><th class="text-nowrap">Old sub-division No.</th><td>{{ e.old_sub }}</td></tr>
+                        <tr><th class="text-nowrap">Area (hectare.are.sqm)</th><td>{{ e.total_hectare }}.{{ e.total_are }}.{{ e.total_sqm }}</td></tr>
+                        <tr><th class="text-nowrap">Nature of right / land type</th><td>{{ e.nature_of_right }}</td></tr>
+                        <tr><th class="text-nowrap">T.P. No. (executant's village)</th><td>{{ e.tp_number }}</td></tr>
+                        <tr><th class="text-nowrap">T.P. No. (buyer's village)</th><td>{{ e.buyer_tp_number }}</td></tr>
+                        <tr><th class="text-nowrap">Details</th><td>{{ e.details }}</td></tr>
+                        <tr><th class="text-nowrap">Boundary &mdash; East</th><td>{{ e.boundary_east }}</td></tr>
+                        <tr><th class="text-nowrap">Boundary &mdash; North</th><td>{{ e.boundary_north }}</td></tr>
+                        <tr><th class="text-nowrap">Boundary &mdash; West</th><td>{{ e.boundary_west }}</td></tr>
+                        <tr><th class="text-nowrap">Boundary &mdash; South</th><td>{{ e.boundary_south }}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-muted small">A table was detected on this page but no schedule rows could be parsed from it.</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="card mb-3">
+      <div class="card-body text-muted">No schedule/table page detected in this PDF.</div>
+    </div>
+  {% endif %}
+{% endif %}
+{% endblock %}
+{% block extra_scripts %}{% include "deeds/_dropzone_js.html" %}{% endblock %}

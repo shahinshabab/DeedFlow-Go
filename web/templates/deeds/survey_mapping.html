@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Map old survey numbers{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="eyebrow">{{ deed }}</div>
+    <h1 class="mt-1">Map old survey numbers</h1>
+    <p class="page-subtitle">The deed doesn't say which old survey number each old sub-division belongs to. Pick one for each, and every pairing goes in as its own row of the schedule.</p>
+  </div>
+</div>
+
+<form method="post" style="max-width: 760px;">
+  {% csrf_token %}
+  {% for group in groups %}
+  <div class="card mb-3">
+    <div class="card-body">
+      <h2 class="section-title mb-1">Schedule {{ group.number }}</h2>
+      <p class="text-muted small mb-3">Old survey numbers: {% for o in group.old_surveys %}<strong>{{ o.old }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr><th>Old sub-division</th><th>Belongs to old survey</th></tr>
+        </thead>
+        <tbody>
+          {% for sub in group.subs %}
+          <tr>
+            <td><strong>{{ sub.sub }}</strong></td>
+            <td>
+              <div class="btn-group" role="group" aria-label="Old survey for sub-division {{ sub.sub }}">
+                {% for o in group.old_surveys %}
+                <input type="radio" class="btn-check" name="map-{{ group.index }}-{{ sub.index }}" id="map-{{ group.index }}-{{ sub.index }}-{{ o.i }}" value="{{ o.i }}" {% if o.i == sub.owner %}checked{% endif %} required>
+                <label class="btn btn-outline-brand" for="map-{{ group.index }}-{{ sub.index }}-{{ o.i }}">{{ o.old }}</label>
+                {% endfor %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+  <button type="submit" class="btn btn-brand"><i class="bi bi-arrow-right"></i> Continue to review</button>
+</form>
+{% endblock %}

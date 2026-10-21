@@ -15,7 +15,7 @@
       </label>
       {{ field.html|safe }}
       {% endif %}
-      {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+      {% if field.help_text %}<div class="form-text">{{ field.help_text|safe }}</div>{% endif %}
       {% for error in field.errors %}<div class="field-error"><i class="bi bi-exclamation-circle"></i><span>{{ error }}</span></div>{% endfor %}
     </div>
     {% endif %}

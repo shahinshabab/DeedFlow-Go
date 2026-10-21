@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}AI Test{% endblock %}
+{% block content %}
+<a href="{% url 'deeds:test_dashboard' %}" class="back-link"><i class="bi bi-arrow-left"></i> Test Dashboard</a>
+<div class="page-header">
+  <div>
+    <div class="eyebrow">Test area</div>
+    <h1 class="mt-1">AI Structuring Test</h1>
+    <p class="page-subtitle">Upload a deed PDF to run extraction and AI structuring and see the raw JSON result - nothing is saved, no deed is created.</p>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" data-busy="Structuring…" class="d-flex flex-column flex-md-row gap-3 align-items-md-center">
+      {% csrf_token %}
+      <label class="dropzone compact flex-grow-1 mb-0" for="pdf_file" data-dropzone>
+        <input type="file" id="pdf_file" name="pdf_file" accept="application/pdf" required>
+        <span class="dz-icon"><i class="bi bi-file-earmark-pdf"></i></span>
+        <span class="d-flex flex-column">
+          <span class="dz-title">Choose a deed PDF</span>
+          <span class="dz-hint">Drop it here or click to browse. Nothing is saved.</span>
+        </span>
+        <span class="dz-file ms-auto"><i class="bi bi-paperclip"></i><span data-dz-name></span></span>
+      </label>
+      <button type="submit" class="btn btn-brand btn-lg"><i class="bi bi-stars"></i> Run AI structuring</button>
+    </form>
+  </div>
+</div>
+
+{% if result %}
+  <div class="card">
+    <div class="card-header justify-content-between flex-wrap gap-2">
+      <span><i class="bi bi-file-earmark-pdf text-brand"></i> {{ result.file_name }}</span>
+      <span class="meta-chip">land type: {{ result.land_type|default:"not detected" }}</span>
+    </div>
+    <div class="card-body">
+      <h2 class="section-title mb-2">Structured JSON</h2>
+      <pre class="code-block">{{ result.json }}</pre>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
+{% block extra_scripts %}{% include "deeds/_dropzone_js.html" %}{% endblock %}

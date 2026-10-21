@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+{% block title %}{{ deed }} · Step {{ current_step_index|add:1 }}{% endblock %}
+{% block content %}
+{% if is_editing %}
+  <a href="{% url 'deeds:detail' deed.public_id %}" class="back-link"><i class="bi bi-arrow-left"></i> Back to deed</a>
+{% endif %}
+<div class="page-header mb-3">
+  <div>
+    <div class="eyebrow">Step {{ current_step_index|add:1 }} of {{ step_labels|length }}</div>
+    <h1 class="mt-1">
+      {% if is_editing %}Edit {% endif %}{% if deed.token_number %}token {{ deed.token_number }}{% else %}Deed #{{ deed.id }}{% endif %}
+      {% if deed.is_test %}<span class="test-pill align-middle">TEST</span>{% endif %}
+    </h1>
+    <p class="page-subtitle">
+      {% if is_editing %}
+        Change any page and click <strong>Save &amp; close</strong>, or walk through with Next.
+        {% if deed.token_number %}Only the pages you actually change are sent to the portal again when you resubmit.{% endif %}
+      {% else %}
+        Fill in each step, then click Next. Nothing is sent to the portal until you submit the finished deed.
+      {% endif %}
+    </p>
+  </div>
+  {% if is_editing %}
+    <div class="page-actions">
+      <a href="{% url 'deeds:detail' deed.public_id %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> Cancel</a>
+    </div>
+  {% endif %}
+</div>
+
+<div class="card mb-3">
+  <div class="card-body py-3">
+    <ol class="stepper" aria-label="Deed steps">
+      {% for step in step_labels %}
+        <li class="{% if forloop.counter0 == current_step_index %}current{% elif forloop.counter0 < current_step_index %}done{% endif %}">
+          {% if is_editing and forloop.counter0 != current_step_index %}
+            <a href="?step={{ step.name }}" class="step">
+          {% else %}
+            <span class="step" {% if forloop.counter0 == current_step_index %}aria-current="step"{% endif %}>
+          {% endif %}
+              <span class="dot">{% if forloop.counter0 < current_step_index and not is_editing %}<i class="bi bi-check-lg"></i>{% else %}{{ forloop.counter }}{% endif %}</span>
+              {{ step.label }}
+              {% if step.name in pending_steps %}<span class="edited-flag" title="Edited - not on the portal yet"></span>{% endif %}
+          {% if is_editing and forloop.counter0 != current_step_index %}</a>{% else %}</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+  <div class="wizard-progress rounded-0"><span style="width: {{ progress_width }}%;"></span></div>
+</div>
+
+{% if registration_locked %}
+  <div class="alert alert-info small">
+    <i class="alert-icon bi bi-lock"></i>
+    <div>Registration details can't be changed once the portal has issued token {{ deed.token_number }} - they're shown for reference only.</div>
+  </div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body">
+    {% for step in step_labels %}
+      {% if forloop.counter0 == current_step_index %}
+        <div class="mb-3">
+          <h2 class="section-title">{{ step.label }}</h2>
+          <p class="section-hint">Fields marked <span class="text-danger">*</span> are required.</p>
+        </div>
+      {% endif %}
+    {% endfor %}
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {{ wizard.management_form|safe }}
+
+      {% if wizard.form.management_form %}
+        {# --- this step is a formset (repeatable section) --- #}
+        {{ wizard.form.management_form|safe }}
+        {% if wizard.form.non_form_errors %}
+          <div class="alert alert-danger py-2 mb-3"><i class="alert-icon bi bi-exclamation-octagon-fill"></i><div><ul class="errorlist nonform">{% for error in wizard.form.non_form_errors %}<li>{{ error }}</li>{% endfor %}</ul></div></div>
+        {% endif %}
+        <input type="hidden" name="{{ wizard.form.prefix }}-ROWS" id="formset-rows" value="">
+        <div id="formset-container" data-step="{{ wizard.steps.current }}">
+          {% for subform in wizard.form.forms_in_page_order %}
+            <div class="entry-card formset-row{% if not subform.instance.pk and subform.DELETE.value %} d-none{% endif %}" data-prefix="{{ subform.prefix }}">
+              <div class="entry-head">
+                <span class="entry-label">Entry {{ forloop.counter }}</span>
+                <div class="entry-tools">
+                  {% include "deeds/wizard/_entry_tools.html" %}
+                  {% if subform.instance.pk %}
+                    <label class="remove-toggle" for="{{ subform.DELETE.id_for_label }}">
+                      {{ subform.DELETE.html|safe }} <i class="bi bi-trash3"></i> Remove
+                    </label>
+                  {% else %}
+                    <span class="d-none">{{ subform.DELETE.html|safe }}</span>
+                    <button type="button" class="btn btn-sm btn-entry-discard" data-row-action="discard" title="Remove this new entry">
+                      <i class="bi bi-trash3"></i> Remove
+                    </button>
+                  {% endif %}
+                </div>
+              </div>
+              {% include "_form_fields.html" with form=subform col_width=col_width %}
+              <div class="pb-3"></div>
+            </div>
+          {% endfor %}
+        </div>
+        <button type="button" class="btn btn-add-row" id="add-row-btn">
+          <i class="bi bi-plus-lg"></i> Add another entry
+        </button>
+        <template id="empty-form-template">
+          <div class="entry-card formset-row" data-prefix="{{ wizard.form.empty_form.prefix }}">
+            <div class="entry-head">
+              <span class="entry-label">New entry</span>
+              <div class="entry-tools">
+                {% include "deeds/wizard/_entry_tools.html" %}
+                <span class="d-none">{{ wizard.form.empty_form.DELETE.html|safe }}</span>
+                <button type="button" class="btn btn-sm btn-entry-discard" data-row-action="discard" title="Remove this new entry">
+                  <i class="bi bi-trash3"></i> Remove
+                </button>
+              </div>
+            </div>
+            {% include "_form_fields.html" with form=wizard.form.empty_form col_width=col_width %}
+            <div class="pb-3"></div>
+          </div>
+        </template>
+      {% else %}
+        {# --- this step is a single form --- #}
+        {% include "_form_fields.html" with form=wizard.form col_width=col_width %}
+      {% endif %}
+
+      <div class="wizard-actions">
+        <div class="d-flex gap-2">
+          {% if wizard.steps.prev %}
+            <button name="wizard_goto_step" type="submit" value="{{ wizard.steps.first }}" class="btn btn-outline-secondary btn-icon" title="First step" aria-label="First step">
+              <i class="bi bi-chevron-double-left"></i>
+            </button>
+            <button name="wizard_goto_step" type="submit" value="{{ wizard.steps.prev }}" class="btn btn-outline-secondary">
+              <i class="bi bi-chevron-left"></i> Back
+            </button>
+          {% endif %}
+        </div>
+        <div class="d-flex gap-2 ms-auto">
+          {% if is_editing %}
+            <button type="submit" name="save_and_close" value="1" class="btn btn-outline-brand">
+              <i class="bi bi-check2"></i> Save &amp; close
+            </button>
+          {% endif %}
+          <button type="submit" class="btn btn-brand">
+            {% if wizard.steps.current == wizard.steps.last %}<i class="bi bi-check2-circle"></i> Finish{% else %}Next <i class="bi bi-chevron-right"></i>{% endif %}
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // On narrow screens the stepper scrolls sideways; keep the current step in view.
+  (function () {
+    var current = document.querySelector(".stepper li.current");
+    var stepper = document.querySelector(".stepper");
+    if (current && stepper) stepper.scrollLeft = current.offsetLeft - (stepper.clientWidth - current.clientWidth) / 2;
+  })();
+</script>
+<script>
+  (function () {
+    // Repeatable sections: Add appends a blank entry; each entry can be
+    // moved up / down or cloned (the copy goes right below it). Entries
+    // keep their own form index wherever they're moved - a saved entry's
+    // index must stay among the first INITIAL_FORMS - and the page order
+    // is posted in <prefix>-ROWS (see OrderedInlineFormSet).
+    var addBtn = document.getElementById("add-row-btn");
+    if (!addBtn) return;
+    var container = document.getElementById("formset-container");
+    var tmpl = document.getElementById("empty-form-template");
+    var rowsInput = document.getElementById("formset-rows");
+    var totalForms = document.getElementById("id_{{ wizard.steps.current }}-TOTAL_FORMS");
+    var isSchedule = container.dataset.step === "schedule";
+
+    function field(card, name) { return card.querySelector('[name="' + card.dataset.prefix + "-" + name + '"]'); }
+    function discarded(card) { return card.classList.contains("d-none"); }
+    function removed(card) { var del = field(card, "DELETE"); return discarded(card) || (del && del.checked); }
+    function cards() {
+      return Array.prototype.filter.call(container.children, function (c) {
+        return c.classList.contains("formset-row") && !discarded(c);
+      });
+    }
+
+    // A schedule's rows sharing its number (its extra old survey rows)
+    // move together, so a schedule's rows stay next to each other.
+    function numberOf(card) { var n = isSchedule && field(card, "number"); return n ? n.value.trim() : ""; }
+    function runOf(card) {
+      var list = cards(), i = list.indexOf(card), num = numberOf(card), start = i, end = i;
+      if (num) {
+        while (start > 0 && numberOf(list[start - 1]) === num) start--;
+        while (end < list.length - 1 && numberOf(list[end + 1]) === num) end++;
+      }
+      return list.slice(start, end + 1);
+    }
+
+    // Schedule numbers in page order, the way the portal gets them: from
+    // 1, rows sharing a number keep sharing it, and `fresh` (a clone)
+    // gets a number of its own. Blank numbers stay blank.
+    function renumber(fresh) {
+      if (!isSchedule) return;
+      var seen = {}, next = 1;
+      cards().forEach(function (card) {
+        var input = field(card, "number");
+        if (!input || removed(card) || !input.value.trim()) return;
+        if (card === fresh) { input.value = String(next++); return; }
+        var old = input.value.trim();
+        if (!seen.hasOwnProperty(old)) seen[old] = String(next++);
+        input.value = seen[old];
+      });
+    }
+
+    function refresh() {
+      var list = cards();
+      list.forEach(function (card, i) {
+        card.querySelector(".entry-label").textContent = "Entry " + (i + 1);
+        var run = runOf(card);
+        card.querySelector('[data-row-action="up"]').disabled = list.indexOf(run[0]) === 0;
+        card.querySelector('[data-row-action="down"]').disabled = list.indexOf(run[run.length - 1]) === list.length - 1;
+      });
+      rowsInput.value = Array.prototype.map.call(container.querySelectorAll(".formset-row"), function (card) {
+        return card.dataset.prefix.split("-").pop();
+      }).join(",");
+    }
+
+    function newCard() {
+      var index = parseInt(totalForms.value, 10);
+      var wrapper = document.createElement("div");
+      wrapper.innerHTML = tmpl.innerHTML.split("__prefix__").join(index).trim();
+      totalForms.value = index + 1;
+      return wrapper.firstElementChild;
+    }
+
+    function copyInto(from, to) {
+      var prefix = from.dataset.prefix + "-";
+      from.querySelectorAll("input, select, textarea").forEach(function (src) {
+        if (!src.name || src.name.indexOf(prefix) !== 0) return;
+        var name = src.name.slice(prefix.length);
+        if (name === "id" || name === "DELETE" || name === "deed") return;
+        var dest = to.querySelector('[name="' + to.dataset.prefix + "-" + name + '"]' +
+                                    (src.type === "radio" ? '[value="' + src.value + '"]' : ""));
+        if (!dest) return;
+        if (src.type === "checkbox" || src.type === "radio") { dest.checked = src.checked; return; }
+        // Dropdowns filled for this entry's choices (SRO, village...) take
+        // their options along.
+        if (src.tagName === "SELECT") dest.innerHTML = src.innerHTML;
+        dest.value = src.value;
+      });
+    }
+
+    function move(card, up) {
+      var run = runOf(card), list = cards();
+      if (up) {
+        var before = list[list.indexOf(run[0]) - 1];
+        if (!before) return;
+        var target = runOf(before)[0];
+        run.forEach(function (c) { container.insertBefore(c, target); });
+      } else {
+        var after = list[list.indexOf(run[run.length - 1]) + 1];
+        if (!after) return;
+        var anchor = runOf(after);
+        anchor[anchor.length - 1].after.apply(anchor[anchor.length - 1], run);
+      }
+      renumber();
+      refresh();
+      card.scrollIntoView({block: "nearest", behavior: "smooth"});
+    }
+
+    function clone(card) {
+      var copy = newCard();
+      copyInto(card, copy);
+      // A schedule's copy is a schedule of its own, after all of the
+      // original's rows.
+      var run = runOf(card);
+      run[run.length - 1].after(copy);
+      renumber(copy);
+      refresh();
+      copy.scrollIntoView({block: "nearest", behavior: "smooth"});
+    }
+
+    function discard(card) {
+      var del = field(card, "DELETE");
+      if (del) del.checked = true;
+      card.classList.add("d-none");
+      container.appendChild(card);
+      renumber();
+      refresh();
+    }
+
+    addBtn.addEventListener("click", function () {
+      container.appendChild(newCard());
+      refresh();
+    });
+    container.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-row-action]");
+      if (!btn || !container.contains(btn)) return;
+      var card = btn.closest(".formset-row"), action = btn.dataset.rowAction;
+      if (action === "up" || action === "down") move(card, action === "up");
+      else if (action === "clone") clone(card);
+      else if (action === "discard") discard(card);
+    });
+    // Removing / restoring a saved entry, or retyping a schedule number,
+    // changes which entries move together.
+    container.addEventListener("change", function (e) {
+      if (/-(DELETE|number)$/.test(e.target.name || "")) refresh();
+    });
+    refresh();
+  })();
+</script>
+<script>
+  (function () {
+    // Dropdowns filled with the registration portal's own options (see
+    // PortalChoicesMixin in deeds/forms.py) carry data-portal-parents: the
+    // fields in the same form their options depend on. When one of those
+    // changes, ask the server for the portal's options for the new choice;
+    // rebuilding a dropdown fires its own change, so the cascade runs on
+    // down (district -> SRO -> taluk -> village ...). Delegated, so rows
+    // added to a formset later work too.
+    var URL = "{% url 'deeds:ajax_portal_options' %}";
+
+    function nameOf(el) { return el.name.split("-").pop(); }
+    function prefixOf(el) { return el.id.slice(0, el.id.length - nameOf(el).length); }
+    function chosenText(el) {
+      if (el.tagName !== "SELECT" || el.dataset.portalText !== "label") return el.value;
+      var opt = el.options[el.selectedIndex];
+      return opt && opt.value !== "" ? opt.textContent : "";
+    }
+
+    function rebuild(sel, texts) {
+      var keep = sel.value;
+      sel.innerHTML = "";
+      var placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "---";
+      sel.appendChild(placeholder);
+      texts.forEach(function (text) {
+        var opt = document.createElement("option");
+        opt.value = text;
+        opt.textContent = text;
+        if (text === keep) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.dispatchEvent(new Event("change", {bubbles: true}));
+    }
+
+    function refresh(sel) {
+      var prefix = prefixOf(sel);
+      var parents = sel.dataset.portalParents.split(",");
+      var ids = sel.dataset.portalParentIds.split(",");
+      var query = "page=" + encodeURIComponent(sel.dataset.portalPage) + "&field=" + encodeURIComponent(sel.dataset.portalField);
+      for (var i = 0; i < parents.length; i++) {
+        var parent = document.getElementById(prefix + parents[i]);
+        var text = parent ? chosenText(parent) : "";
+        if (!text) { rebuild(sel, []); return; }
+        query += "&p." + encodeURIComponent(ids[i]) + "=" + encodeURIComponent(text);
+      }
+      // Only the latest request for a dropdown may fill it: answers to an
+      // earlier choice can arrive after a later one's.
+      var seq = sel._portalSeq = (sel._portalSeq || 0) + 1;
+      fetch(URL + "?" + query).then(function (r) { return r.json(); }).then(function (data) {
+        if (seq === sel._portalSeq) rebuild(sel, data.options || []);
+      }).catch(function () {});
+    }
+
+    document.addEventListener("change", function (e) {
+      var el = e.target;
+      if (!el.name || !el.id) return;
+      var name = nameOf(el), prefix = prefixOf(el);
+      document.querySelectorAll("select[data-portal-parents]").forEach(function (sel) {
+        if (!sel.dataset.portalParents || sel.id !== prefix + nameOf(sel)) return;
+        if (sel.dataset.portalParents.split(",").indexOf(name) !== -1) refresh(sel);
+      });
+    });
+  })();
+</script>
+{% if wizard.steps.current == "registration" %}
+<script>
+  (function () {
+    // District -> SRO -> Taluk and Book -> Transaction Type -> Sub-type
+    // are chained dropdowns, same as the government portal's own "New
+    // Token" form: each parent field's change fetches its child's real
+    // options from the server (property_data.json / book_data.json)
+    // instead of showing one flat list of every SRO/taluk/type in Kerala.
+    var districtEl = document.getElementById("id_registration-district");
+    var sroEl = document.getElementById("id_registration-sro");
+    var talukEl = document.getElementById("id_registration-taluk");
+    var bookEl = document.getElementById("id_registration-book");
+    var typeEl = document.getElementById("id_registration-deed_type");
+    var subtypeEl = document.getElementById("id_registration-deed_sub_type");
+    if (!districtEl || !sroEl || !talukEl || !bookEl || !typeEl || !subtypeEl) return;
+
+    var SRO_URL = "{% url 'deeds:ajax_sros' %}";
+    var TALUK_URL = "{% url 'deeds:ajax_taluks' %}";
+    var TYPE_URL = "{% url 'deeds:ajax_deed_types' %}";
+    var SUBTYPE_URL = "{% url 'deeds:ajax_deed_subtypes' %}";
+
+    function fetchJSON(url, cb) {
+      fetch(url).then(function (r) { return r.json(); }).then(cb).catch(function () {});
+    }
+
+    function setOptions(selectEl, values, placeholder, selectedValue) {
+      selectEl.innerHTML = "";
+      var placeholderOpt = document.createElement("option");
+      placeholderOpt.value = "";
+      placeholderOpt.textContent = placeholder;
+      selectEl.appendChild(placeholderOpt);
+      // Mirrors RegistrationDetailForm._set_dependent_choices on the
+      // Python side: a value that's already selected but isn't in the
+      // freshly-fetched list (e.g. deed_type "തീരാധാരം" - a real value
+      // for resolving the portal's registration type, but not one of
+      // book_data.json's own type names) still needs to stay selected,
+      // not silently vanish out from under the field the moment this
+      // AJAX response rebuilds its options.
+      if (selectedValue && values.indexOf(selectedValue) === -1) {
+        values = [selectedValue].concat(values);
+      }
+      values.forEach(function (value) {
+        var opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = value;
+        if (value === selectedValue) opt.selected = true;
+        selectEl.appendChild(opt);
+      });
+    }
+
+    function loadSros(selectedSro, thenSelectedTaluk) {
+      var district = districtEl.value;
+      if (!district) {
+        setOptions(sroEl, [], "-- Select District First --");
+        loadTaluks();
+        return;
+      }
+      fetchJSON(SRO_URL + "?district=" + encodeURIComponent(district), function (data) {
+        setOptions(sroEl, data.sros || [], "-- Select SRO --", selectedSro);
+        loadTaluks(thenSelectedTaluk);
+      });
+    }
+
+    function loadTaluks(selectedTaluk) {
+      var district = districtEl.value, sro = sroEl.value;
+      if (!district || !sro) {
+        setOptions(talukEl, [], "-- Select SRO First --");
+        return;
+      }
+      fetchJSON(TALUK_URL + "?district=" + encodeURIComponent(district) + "&sro=" + encodeURIComponent(sro), function (data) {
+        setOptions(talukEl, data.taluks || [], "-- Select Taluk --", selectedTaluk);
+      });
+    }
+
+    function loadDeedTypes(selectedType, thenSelectedSubtype) {
+      var book = bookEl.value;
+      if (!book) {
+        setOptions(typeEl, [], "-- Select Book First --");
+        loadSubtypes();
+        return;
+      }
+      fetchJSON(TYPE_URL + "?book=" + encodeURIComponent(book), function (data) {
+        setOptions(typeEl, data.types || [], "-- Select Transaction Type --", selectedType);
+        loadSubtypes(thenSelectedSubtype);
+      });
+    }
+
+    function loadSubtypes(selectedSubtype) {
+      var book = bookEl.value, type = typeEl.value;
+      if (!book || !type) {
+        setOptions(subtypeEl, [], "-- Select Transaction Type First --");
+        return;
+      }
+      fetchJSON(SUBTYPE_URL + "?book=" + encodeURIComponent(book) + "&type=" + encodeURIComponent(type), function (data) {
+        var names = (data.subtypes || []).map(function (s) { return s.name; });
+        setOptions(subtypeEl, names, "-- Select Sub-type (optional) --", selectedSubtype);
+      });
+    }
+
+    // Preserve whatever's already selected (editing an existing deed, or
+    // re-showing the form after a validation error elsewhere on the
+    // page) before the cascade rebuilds each dropdown's real options.
+    var initialSro = sroEl.value, initialTaluk = talukEl.value;
+    var initialType = typeEl.value, initialSubtype = subtypeEl.value;
+
+    // Dropdowns carrying the portal's own scraped options (data-portal-*)
+    // cascade through the generic script above instead.
+    if (!sroEl.dataset.portalField) {
+      districtEl.addEventListener("change", function () { loadSros(); });
+      sroEl.addEventListener("change", function () { loadTaluks(); });
+      if (districtEl.value) loadSros(initialSro, initialTaluk);
+    }
+    if (!typeEl.dataset.portalField) {
+      bookEl.addEventListener("change", function () { loadDeedTypes(); });
+      typeEl.addEventListener("change", function () { loadSubtypes(); });
+      if (bookEl.value) loadDeedTypes(initialType, initialSubtype);
+    }
+  })();
+</script>
+{% endif %}
+{% endblock %}

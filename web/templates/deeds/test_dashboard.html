@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Test Dashboard{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="eyebrow">Test area</div>
+    <h1 class="mt-1">Test Dashboard</h1>
+    <p class="page-subtitle">Try each stage of the pipeline on its own, without touching your real deeds.</p>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6 col-xl-4">
+    <a href="{% url 'deeds:pdf_test' %}" class="action-card">
+      <span class="icon-tile"><i class="bi bi-file-earmark-text"></i></span>
+      <i class="bi bi-arrow-right go fs-5"></i>
+      <h2>PDF Test</h2>
+      <p>Upload a deed PDF and see exactly what the extraction pipeline reads from it - the converted Malayalam text and the parsed property schedule.</p>
+    </a>
+  </div>
+  <div class="col-md-6 col-xl-4">
+    <a href="{% url 'deeds:ai_test' %}" class="action-card">
+      <span class="icon-tile"><i class="bi bi-stars"></i></span>
+      <i class="bi bi-arrow-right go fs-5"></i>
+      <h2>AI Test</h2>
+      <p>Upload a deed PDF and see the raw structured JSON the AI produces from it - no deed is created, just the extraction result.</p>
+    </a>
+  </div>
+  <div class="col-md-12 col-xl-4">
+    <a href="{% url 'deeds:selenium_test' %}" class="action-card">
+      <span class="icon-tile"><i class="bi bi-robot"></i></span>
+      <i class="bi bi-arrow-right go fs-5"></i>
+      <h2>Selenium Test</h2>
+      <p>Fill in the same wizard used for real deeds, then submit it to the actual Registration Department portal with live progress and screenshots.</p>
+    </a>
+  </div>
+</div>
+
+<div class="card overflow-hidden">
+  <div class="card-header justify-content-between">
+    <span>Recent Selenium tests</span>
+    <a href="{% url 'deeds:selenium_test' %}" class="btn btn-sm btn-outline-brand"><i class="bi bi-plus-lg"></i> New test</a>
+  </div>
+  {% if recent_tests %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle table-stack">
+        <thead>
+          <tr><th>Deed</th><th>Status</th><th>Progress</th><th>Created</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for deed in recent_tests %}
+            <tr>
+              <td class="fw-semibold">{{ deed }}</td>
+              <td data-label="Status">{% include "_status_pill.html" %}</td>
+              <td data-label="Progress" style="min-width: 140px;">
+                <div class="d-flex align-items-center gap-2">
+                  <div class="progress flex-grow-1" style="height: 6px;">
+                    <div class="progress-bar bg-success" style="width: {{ deed.progress }}%;"></div>
+                  </div>
+                  <span class="small text-muted">{{ deed.progress }}%</span>
+                </div>
+              </td>
+              <td data-label="Created" class="text-muted small text-nowrap">{{ deed.created_at|date:"d M Y, H:i" }}</td>
+              <td class="text-end cell-actions">
+                {% if deed.status == "draft" %}
+                  <a href="{% url 'deeds:wizard' deed.public_id %}" class="btn btn-sm btn-outline-brand">Continue <i class="bi bi-arrow-right"></i></a>
+                {% else %}
+                  <a href="{% url 'deeds:detail' deed.public_id %}" class="btn btn-sm btn-outline-secondary">Open <i class="bi bi-arrow-right"></i></a>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <span class="icon-tile"><i class="bi bi-robot"></i></span>
+      <h3>No Selenium tests yet</h3>
+      <p>Start one to fill the wizard with test data and submit it to the portal.</p>
+      <a href="{% url 'deeds:selenium_test' %}" class="btn btn-brand"><i class="bi bi-plus-lg"></i> New Selenium test</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

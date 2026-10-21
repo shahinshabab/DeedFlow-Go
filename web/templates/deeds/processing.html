@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Processing {{ deed }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="eyebrow">New deed from PDF</div>
+    <h1 class="mt-1">Processing {{ deed }}</h1>
+    <p class="page-subtitle">Reading the PDF and structuring its details. You'll be taken to the review form automatically when it's done.</p>
+  </div>
+</div>
+
+<div class="card live-card mb-3" style="max-width: 760px;">
+  <div class="live-head">
+    <span class="live-spinner" id="live-spinner">{% if failed %}<i class="bi bi-x-lg fs-4 text-danger"></i>{% else %}<span class="spinner-border" role="status" aria-hidden="true"></span>{% endif %}</span>
+    <div>
+      <div class="live-percent" id="progress-label">{{ deed.progress }}%</div>
+      <div class="mt-1">Status: <span id="status" class="badge {% if failed %}text-bg-danger{% else %}text-bg-info{% endif %}">{{ deed.get_status_display }}</span></div>
+    </div>
+  </div>
+  <div class="progress" style="height: 8px;">
+    <div id="progress-bar" class="progress-bar {% if failed %}bg-danger{% else %}bg-success progress-bar-striped progress-bar-animated{% endif %}" style="width: {{ deed.progress }}%;"></div>
+  </div>
+  <p id="progress-message" class="live-message">{% if failed %}{{ deed.result_message|default:"Processing failed." }}{% else %}Connecting…{% endif %}</p>
+  <form method="post" action="{% url 'deeds:reprocess' deed.public_id %}" id="retry-form" class="d-flex flex-wrap gap-2 mt-2"{% if not can_retry %} hidden{% endif %}>
+    {% csrf_token %}
+    <button type="submit" class="btn btn-brand"><i class="bi bi-arrow-repeat"></i> Try again</button>
+    <a href="{% url 'deeds:upload' %}" class="btn btn-outline-secondary">Upload a different PDF</a>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if not failed %}
+<script>
+  const publicId = "{{ deed.public_id }}";
+  const wizardUrl = "{% url 'deeds:wizard' deed.public_id %}";
+  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+
+  const bar = document.getElementById("progress-bar");
+  const label = document.getElementById("progress-label");
+  const statusEl = document.getElementById("status");
+  const messageEl = document.getElementById("progress-message");
+  const spinnerEl = document.getElementById("live-spinner");
+  let finished = false;
+  function stopLive(ok) {
+    bar.classList.remove("progress-bar-animated", "progress-bar-striped");
+    if (!ok) bar.classList.replace("bg-success", "bg-danger");
+    spinnerEl.innerHTML = ok ? '<i class="bi bi-check-lg fs-4 text-brand"></i>' : '<i class="bi bi-x-lg fs-4 text-danger"></i>';
+  }
+
+  function handle(data) {
+    if (finished) return;
+
+    if (data.progress !== undefined) {
+      bar.style.width = data.progress + "%";
+      label.textContent = data.progress + "%";
+    }
+    if (data.status) {
+      statusEl.textContent = data.status;
+    }
+    if (data.message) {
+      messageEl.textContent = data.message;
+    }
+
+    if (data.event === "complete") {
+      finished = true;
+      statusEl.textContent = "Ready for review";
+      statusEl.className = "badge text-bg-success";
+      stopLive(true);
+      messageEl.textContent = "Done - taking you to the review form…";
+      setTimeout(function () {
+        window.location.href = data.redirect_url;
+      }, 600);
+    } else if (data.event === "failed") {
+      finished = true;
+      statusEl.textContent = "Failed";
+      statusEl.className = "badge text-bg-danger";
+      stopLive(false);
+      messageEl.textContent = data.error || "Processing failed.";
+      document.getElementById("retry-form").hidden = false;
+    }
+  }
+
+  // Live updates over the WebSocket, reconnecting if it drops.
+  function connect() {
+    const socket = new WebSocket(`${scheme}://${window.location.host}/ws/deeds/${publicId}/status/`);
+    socket.onmessage = function (e) { handle(JSON.parse(e.data)); };
+    socket.onclose = function () { if (!finished) setTimeout(connect, 3000); };
+  }
+  connect();
+
+  // And a status poll as the source of truth: catches processing that
+  // ended before the socket connected (a quick failure) or while it was
+  // down, and a run the server found cut off.
+  function poll() {
+    if (finished) return;
+    fetch(`/deeds/${publicId}/status/`, {headers: {"Accept": "application/json"}})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) return;
+        if (d.status === "ready_for_review") {
+          handle({event: "complete", progress: 100, redirect_url: wizardUrl});
+        } else if (d.status === "failed") {
+          handle({event: "failed", progress: d.progress, error: d.message});
+        }
+      })
+      .catch(function () {})
+      .finally(function () { if (!finished) setTimeout(poll, 4000); });
+  }
+  setTimeout(poll, 4000);
+</script>
+{% endif %}
+{% endblock %}

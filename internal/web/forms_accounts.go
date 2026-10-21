@@ -50,6 +50,7 @@ func setPasswordForm(prefix string, user *auth.UserAttrs, withOld bool) *forms.F
 	p1 := password("new_password1", "New password", "new-password")
 	p1.HelpText = pwHelpHTML
 	p2 := password("new_password2", "New password confirmation", "new-password")
+	p2.HelpText = "Enter the same password as before, for verification."
 	fields = append(fields, p1, p2)
 	f := forms.New(prefix, fields...)
 	f.Clean = func(f *forms.Form) {
@@ -78,6 +79,8 @@ func organizationNameForm(name string, bound map[string][]string) *forms.Form {
 func intField(name, label string, required bool, def string) *forms.Field {
 	var min, max int64 = 0, 32767
 	fl := forms.IntField(name, label, required, min, max)
+	// The upper bound is the model field's range: validated, not rendered.
+	fl.Max, fl.ModelMax = nil, &max
 	fl.Initial = def
 	return fl
 }

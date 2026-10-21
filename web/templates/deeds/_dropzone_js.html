@@ -1,0 +1,33 @@
+<script>
+  // Shows the chosen file name inside a .dropzone and highlights it while a file is dragged over.
+  document.querySelectorAll("[data-dropzone]").forEach(function (zone) {
+    var input = zone.querySelector("input[type=file]");
+    var nameEl = zone.querySelector("[data-dz-name]");
+    if (!input) return;
+    function refresh() {
+      var file = input.files && input.files[0];
+      zone.classList.toggle("has-file", !!file);
+      var more = input.files ? input.files.length - 1 : 0;
+      if (nameEl) nameEl.textContent = file ? file.name + (more > 0 ? " and " + more + " more" : "") : "";
+    }
+    input.addEventListener("change", refresh);
+    ["dragenter", "dragover"].forEach(function (ev) {
+      zone.addEventListener(ev, function () { zone.classList.add("dragover"); });
+    });
+    ["dragleave", "drop"].forEach(function (ev) {
+      zone.addEventListener(ev, function () { zone.classList.remove("dragover"); setTimeout(refresh, 0); });
+    });
+    refresh();
+  });
+</script>
+<script>
+  // Long-running uploads: show a busy state on the submit button so it isn't clicked twice.
+  document.querySelectorAll("form[data-busy]").forEach(function (form) {
+    form.addEventListener("submit", function () {
+      var btn = form.querySelector("button[type=submit]");
+      if (!btn || btn.name) return;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> ' + (form.dataset.busy || "Working…");
+    });
+  });
+</script>

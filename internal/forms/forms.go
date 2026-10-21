@@ -490,7 +490,8 @@ func (f *Form) widgetHTML(fl *Field) string {
 	}
 	switch fl.Widget {
 	case Select:
-		if fl.Required && !fl.Disabled && !f.NoRequiredAttr {
+		// Django adds required to a select only when its first option is the blank one.
+		if fl.Required && !f.NoRequiredAttr && len(fl.Choices) > 0 && fl.Choices[0].Value == "" {
 			attrs["required"] = ""
 		}
 		attrs["id"] = id
@@ -509,7 +510,7 @@ func (f *Form) widgetHTML(fl *Field) string {
 		}
 		b.WriteString("</select>")
 	case Textarea:
-		if fl.Required && !fl.Disabled && !f.NoRequiredAttr {
+		if fl.Required && !f.NoRequiredAttr {
 			attrs["required"] = ""
 		}
 		attrs["id"] = id
@@ -532,7 +533,7 @@ func (f *Form) widgetHTML(fl *Field) string {
 		if value != "" && value != "false" && value != "False" {
 			attrs["checked"] = ""
 		}
-		if fl.Required && !fl.Disabled && !f.NoRequiredAttr {
+		if fl.Required && !f.NoRequiredAttr {
 			attrs["required"] = ""
 		}
 		attrs["id"] = id
@@ -571,7 +572,7 @@ func (f *Form) widgetHTML(fl *Field) string {
 		if fl.Kind == Email {
 			typ = map[bool]string{true: typ, false: "email"}[fl.Widget == PasswordInput || fl.Widget == HiddenInput]
 		}
-		if fl.Required && !fl.Disabled && fl.Widget != HiddenInput && !f.NoRequiredAttr {
+		if fl.Required && fl.Widget != HiddenInput && !f.NoRequiredAttr {
 			attrs["required"] = ""
 		}
 		if fl.MaxLength > 0 {

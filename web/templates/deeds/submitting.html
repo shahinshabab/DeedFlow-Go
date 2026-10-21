@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Submitting {{ deed }}{% endblock %}
+{% block content %}
+<a href="{% url 'deeds:detail' deed.public_id %}" class="back-link"><i class="bi bi-arrow-left"></i> Back to deed</a>
+<div class="page-header">
+  <div>
+    <div class="eyebrow">Portal submission</div>
+    <h1 class="mt-1">Submitting {{ deed }}</h1>
+    <p class="page-subtitle">Entering this deed on the Registration Department portal. You can leave this page; the submission keeps running.</p>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card live-card h-100">
+      <div class="live-head">
+        <span class="live-spinner" id="live-spinner"><span class="spinner-border" role="status" aria-hidden="true"></span></span>
+        <div>
+          <div class="live-percent" id="progress-label">{{ deed.progress }}%</div>
+          <div class="mt-1">Status: <span id="status" class="badge text-bg-info">{{ deed.get_status_display }}</span></div>
+        </div>
+      </div>
+      <div class="progress" style="height: 8px;">
+        <div id="progress-bar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: {{ deed.progress }}%;"></div>
+      </div>
+      <p id="progress-message" class="live-message">Connecting…</p>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-images text-brand"></i> Screenshots as they're captured</div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">One screenshot per completed section - not the login page, not one per individual entry.</p>
+        <div id="screenshot-gallery" class="shot-grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const publicId = "{{ deed.public_id }}";
+  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+
+  const bar = document.getElementById("progress-bar");
+  const label = document.getElementById("progress-label");
+  const statusEl = document.getElementById("status");
+  const messageEl = document.getElementById("progress-message");
+  const spinnerEl = document.getElementById("live-spinner");
+  function stopLive(ok) {
+    bar.classList.remove("progress-bar-animated", "progress-bar-striped");
+    if (!ok) bar.classList.replace("bg-success", "bg-danger");
+    spinnerEl.innerHTML = ok ? '<i class="bi bi-check-lg fs-4 text-brand"></i>' : '<i class="bi bi-x-lg fs-4 text-danger"></i>';
+  }
+  const gallery = document.getElementById("screenshot-gallery");
+
+  let finished = false;
+  function handle(data) {
+    if (finished) return;
+
+    if (data.progress !== undefined) {
+      bar.style.width = data.progress + "%";
+      label.textContent = data.progress + "%";
+    }
+    if (data.status) statusEl.textContent = data.status;
+    if (data.message) messageEl.textContent = data.message;
+
+    if (data.screenshot_url) {
+      const link = document.createElement("a");
+      link.href = data.screenshot_url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      const thumb = document.createElement("img");
+      thumb.src = data.screenshot_url;
+      thumb.alt = data.stage || "screenshot";
+      link.appendChild(thumb);
+      const caption = document.createElement("div");
+      caption.className = "shot-caption";
+      caption.textContent = data.stage || "";
+      const wrapper = document.createElement("div");
+      wrapper.appendChild(link);
+      wrapper.appendChild(caption);
+      gallery.appendChild(wrapper);
+    }
+
+    if (data.event === "complete") {
+      finished = true;
+      statusEl.textContent = data.status === "completed" ? "Completed" : "Completed (check details)";
+      statusEl.className = "badge text-bg-success";
+      stopLive(true);
+      messageEl.textContent = "Done - taking you to the deed…";
+      setTimeout(function () {
+        window.location.href = data.redirect_url;
+      }, 800);
+    } else if (data.event === "failed") {
+      finished = true;
+      statusEl.textContent = "Failed";
+      statusEl.className = "badge text-bg-danger";
+      stopLive(false);
+      messageEl.textContent = data.error || "Submission failed.";
+    }
+  }
+
+  // Live updates over the WebSocket, reconnecting if it drops.
+  function connect() {
+    const socket = new WebSocket(`${scheme}://${window.location.host}/ws/deeds/${publicId}/status/`);
+    socket.onmessage = function (e) { handle(JSON.parse(e.data)); };
+    socket.onclose = function () { if (!finished) setTimeout(connect, 3000); };
+  }
+  connect();
+
+  // And a status poll as the source of truth: catches a run that ended
+  // while the socket was down, or before it connected.
+  function poll() {
+    if (finished) return;
+    fetch(`/deeds/${publicId}/status/`, {headers: {"Accept": "application/json"}})
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) return;
+        if (d.status === "completed") {
+          handle({event: "complete", status: d.status, progress: 100, redirect_url: d.detail_url});
+        } else if (d.status === "failed") {
+          handle({event: "failed", status: d.status, progress: d.progress, error: d.message});
+        }
+      })
+      .catch(function () {})
+      .finally(function () { if (!finished) setTimeout(poll, 5000); });
+  }
+  setTimeout(poll, 5000);
+</script>
+{% endblock %}

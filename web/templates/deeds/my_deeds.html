@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}My Deeds{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>My Deeds</h1>
+    <p class="page-subtitle">Every deed in your organization, newest first. Open one to review it or submit it to the portal.</p>
+  </div>
+  <div class="page-actions">
+    <a href="{% url 'deeds:create' %}" class="btn btn-outline-brand">
+      <i class="bi bi-file-earmark-plus"></i> Blank deed
+    </a>
+    <a href="{% url 'deeds:upload' %}" class="btn btn-brand">
+      <i class="bi bi-file-earmark-arrow-up"></i> New from PDF
+    </a>
+  </div>
+</div>
+
+<form method="get" class="card filter-bar mb-3">
+  <div class="card-body py-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-lg-5">
+        <label class="form-label mb-1" for="q">Search</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="search" class="form-control" id="q" name="q" value="{{ q }}"
+                 placeholder="Presenter name or token number">
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-2">
+        <label class="form-label mb-1" for="status">Status</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">All statuses</option>
+          {% for c in status_choices %}
+            <option value="{{ c.value }}" {% if c.value == status %}selected{% endif %}>{{ c.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label mb-1" for="from">Present date</label>
+        <div class="input-group">
+          <input type="date" class="form-control" id="from" name="from" value="{{ date_from }}" aria-label="From">
+          <span class="input-group-text">to</span>
+          <input type="date" class="form-control" id="to" name="to" value="{{ date_to }}" aria-label="To">
+        </div>
+      </div>
+      <div class="col-lg-2 d-flex gap-2">
+        <button type="submit" class="btn btn-brand flex-grow-1"><i class="bi bi-funnel"></i> Filter</button>
+        {% if filtered %}
+          <a href="{% url 'deeds:my_deeds' %}" class="btn btn-outline-secondary btn-icon" title="Clear filters" aria-label="Clear filters"><i class="bi bi-x-lg"></i></a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="card overflow-hidden">
+  {% if page.object_list %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle table-stack">
+        <thead>
+          <tr>
+            <th>Deed</th>
+            <th>Status</th>
+            <th>Presenter</th>
+            <th>Present date</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for deed in page.object_list %}
+            <tr class="row-link" data-href="{% url 'deeds:detail' deed.public_id %}">
+              <td>
+                <a href="{% url 'deeds:detail' deed.public_id %}" class="cell-title">
+                  {% if deed.token_number %}{{ deed.token_number }}{% else %}Deed #{{ deed.id }}{% endif %}
+                </a>
+                {% if deed.is_test %}<span class="test-pill ms-1">TEST</span>{% endif %}
+                <div class="cell-sub">{% if deed.token_number %}Token{% else %}No token yet{% endif %} · by {{ deed.owner.get_full_name|default:deed.owner.username }}</div>
+              </td>
+              <td data-label="Status">{% include "_status_pill.html" %}</td>
+              <td data-label="Presenter">{{ deed.presenter.name|default:"—" }}</td>
+              <td data-label="Present date" class="text-nowrap">{{ deed.presenter.presenter_date|date:"d M Y"|default:"—" }}</td>
+              <td class="text-end text-nowrap cell-actions">
+                {% if deed.status != "submitting" %}
+                  <a href="{% url 'deeds:wizard' deed.public_id %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-pencil"></i> Edit
+                  </a>
+                {% endif %}
+                <a href="{% url 'deeds:detail' deed.public_id %}" class="btn btn-sm btn-outline-brand">
+                  Open <i class="bi bi-arrow-right"></i>
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% elif filtered %}
+    <div class="empty-state">
+      <span class="icon-tile"><i class="bi bi-search"></i></span>
+      <h2>No deeds match these filters</h2>
+      <p>Try a different name, token number, status or date range.</p>
+      <a href="{% url 'deeds:my_deeds' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> Clear filters</a>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <span class="icon-tile"><i class="bi bi-folder2-open"></i></span>
+      <h2>No deeds yet</h2>
+      <p>Upload a deed PDF to have its details extracted, or start with a blank deed.</p>
+      <div class="d-flex flex-wrap gap-2 justify-content-center">
+        <a href="{% url 'deeds:upload' %}" class="btn btn-brand"><i class="bi bi-file-earmark-arrow-up"></i> New from PDF</a>
+        <a href="{% url 'deeds:create' %}" class="btn btn-outline-brand"><i class="bi bi-file-earmark-plus"></i> Blank deed</a>
+      </div>
+    </div>
+  {% endif %}
+  {% if page.paginator.num_pages > 1 %}
+    <div class="pager">
+      <span>Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.paginator.count }}</span>
+      <div class="d-flex gap-2">
+        {% if page.has_previous %}
+          <a class="btn btn-sm btn-outline-secondary" href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Previous</a>
+        {% endif %}
+        {% if page.has_next %}
+          <a class="btn btn-sm btn-outline-secondary" href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page.next_page_number }}">Next <i class="bi bi-chevron-right"></i></a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+  // Whole-row click opens the deed; links and buttons inside the row keep their own behaviour.
+  document.querySelectorAll("tr.row-link").forEach(function (row) {
+    row.addEventListener("click", function (e) {
+      if (e.target.closest("a, button, input, select, label")) return;
+      window.location.href = row.dataset.href;
+    });
+  });
+</script>
+{% endblock %}

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"io/fs"
 	"net/http"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -44,6 +46,29 @@ func newTemplates(a *App) (*templates, error) {
 type rootLoader struct{ *pongo2.FSLoader }
 
 func (rootLoader) Abs(base, name string) string { return name }
+
+// loopVars maps Django's forloop attributes to pongo2's capitalised ones.
+var loopVars = regexp.MustCompile(`forloop\.(counter0|counter|first|last|revcounter0|revcounter)\b`)
+
+var loopVarNames = map[string]string{"counter0": "Counter0", "counter": "Counter", "first": "First", "last": "Last",
+	"revcounter0": "Revcounter0", "revcounter": "Revcounter"}
+
+// Get reads a template, translating forloop.counter and friends so the
+// templates can keep Django's spelling.
+func (l rootLoader) Get(path string) (io.Reader, error) {
+	r, err := l.FSLoader.Get(path)
+	if err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	data = loopVars.ReplaceAllFunc(data, func(m []byte) []byte {
+		return []byte("forloop." + loopVarNames[string(m[len("forloop."):])])
+	})
+	return bytes.NewReader(data), nil
+}
 
 func init() {
 	pongo2.SetAutoescape(true)
@@ -195,7 +220,7 @@ func (nodeFontFaces) Execute(ctx *pongo2.ExecutionContext, w pongo2.TemplateWrit
 	srcs = append(srcs, fmt.Sprintf("url(%q) format(\"truetype\")", current.StaticURL("fonts/ML-TTKarthika.ttf")))
 	// There is only the normal weight, and it stands for every weight.
 	w.WriteString(fmt.Sprintf(`<style>@font-face{font-family:"ML-TT Karthika";font-weight:100 900;font-display:swap;src:%s;}</style>`,
-		html.EscapeString(strings.Join(srcs, ", "))))
+		strings.Join(srcs, ", ")))
 	return nil
 }
 
