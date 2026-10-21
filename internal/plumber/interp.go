@@ -95,6 +95,7 @@ type Page struct {
 type Doc struct {
 	r     *pdf.Reader
 	fonts map[string]*pdfFont
+	pages map[int]*Page
 }
 
 // Open reads a PDF held in memory.
@@ -109,7 +110,7 @@ func Open(data []byte) (doc *Doc, err error) {
 		// Encrypted with a non-empty password, or damaged.
 		return nil, err
 	}
-	return &Doc{r: r, fonts: map[string]*pdfFont{}}, nil
+	return &Doc{r: r, fonts: map[string]*pdfFont{}, pages: map[int]*Page{}}, nil
 }
 
 // NumPages is the number of pages.
@@ -149,8 +150,11 @@ type interp struct {
 	depth     int
 }
 
-// Page interprets one page (1-based).
+// Page interprets one page (1-based); results are cached.
 func (d *Doc) Page(n int) (page *Page, err error) {
+	if p, ok := d.pages[n]; ok {
+		return p, nil
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("reading page %d: %v", n, r)
@@ -210,6 +214,7 @@ func (d *Doc) Page(n int) (page *Page, err error) {
 		}
 	}
 	it.run(data)
+	d.pages[n] = p
 	return p, nil
 }
 
