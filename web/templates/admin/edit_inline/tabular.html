@@ -27,16 +27,16 @@
      </tr></thead>
 
      <tbody>
-     {% for inline_admin_form in inline_admin_formset %}
+     {% for inline_admin_form in inline_admin_formset.forms %}
         {% if inline_admin_form.form.non_field_errors %}
-        <tr class="row-form-errors"><td colspan="{{ inline_admin_form|cell_count }}">{{ inline_admin_form.form.non_field_errors }}</td></tr>
+        <tr class="row-form-errors"><td colspan="{{ inline_admin_form.cell_count }}">{{ inline_admin_form.form.non_field_errors }}</td></tr>
         {% endif %}
-        <tr class="form-row {% if inline_admin_form.original or inline_admin_form.show_url %}has_original{% endif %}{% if forloop.last and inline_admin_formset.has_add_permission %} empty-form{% endif %}"
+        <tr class="form-row {% if inline_admin_form.has_original or inline_admin_form.show_url %}has_original{% endif %}{% if forloop.last and inline_admin_formset.has_add_permission %} empty-form{% endif %}"
              id="{{ inline_admin_formset.formset.prefix }}-{% if forloop.last and inline_admin_formset.has_add_permission %}empty{% else %}{{ forloop.counter0 }}{% endif %}">
         <td class="original">
-          {% if inline_admin_form.original or inline_admin_form.show_url %}<p>
-          {% if inline_admin_form.original %}
-          {{ inline_admin_form.original }}
+          {% if inline_admin_form.has_original or inline_admin_form.show_url %}<p>
+          {% if inline_admin_form.has_original %}
+          {{ inline_admin_form.original_repr }}
           {% if inline_admin_form.model_admin.show_change_link and inline_admin_form.model_admin.has_registered_model %}<a href="{% url inline_admin_form.model_admin.opts|admin_urlname:'change' inline_admin_form.original.pk|admin_urlquote %}" class="{{ inline_admin_formset.has_change_permission|yesno:'inlinechangelink,inlineviewlink' }}">{% if inline_admin_formset.has_change_permission %}{% translate "Change" %}{% else %}{% translate "View" %}{% endif %}</a>{% endif %}
           {% endif %}
           {% if inline_admin_form.show_url %}<a href="{{ inline_admin_form.absolute_url }}">{% translate "View on site" %}</a>{% endif %}
@@ -44,14 +44,14 @@
           {% if inline_admin_form.needs_explicit_pk_field %}{{ inline_admin_form.pk_field.field }}{% endif %}
           {% if inline_admin_form.fk_field %}{{ inline_admin_form.fk_field.field }}{% endif %}
         </td>
-        {% for fieldset in inline_admin_form %}
-          {% for line in fieldset %}
-            {% for field in line %}
+        {% for fieldset in inline_admin_form.fieldsets %}
+          {% for line in fieldset.lines %}
+            {% for field in line.items %}
               <td class="{% if field.field.name %}field-{{ field.field.name }}{% endif %}{% if field.field.is_hidden %} hidden{% endif %}">
               {% if field.is_readonly %}
                   <p>{{ field.contents }}</p>
               {% else %}
-                  {{ field.field.errors.as_ul }}
+                  {{ field.field.errors }}
                   {{ field.field }}
               {% endif %}
               </td>
@@ -59,7 +59,7 @@
           {% endfor %}
         {% endfor %}
         {% if inline_admin_formset.formset.can_delete and inline_admin_formset.has_delete_permission %}
-          <td class="delete">{% if inline_admin_form.original %}{{ inline_admin_form.deletion_field.field }}{% endif %}</td>
+          <td class="delete">{% if inline_admin_form.has_original %}{{ inline_admin_form.deletion_field.field }}{% endif %}</td>
         {% endif %}
         </tr>
      {% endfor %}

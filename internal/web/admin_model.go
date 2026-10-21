@@ -331,6 +331,9 @@ func (e *reprEnv) str(o *adminObj) string {
 		return s("file")
 	case "filereader.filingsheet":
 		return s("name")
+	case "auth.permission":
+		ct, _ := v["content_type"].(int64)
+		return e.contentTypeStr(ct) + " | " + s("name")
 	case "admin.logentry":
 		switch v["action_flag"] {
 		case int64(logAddition):

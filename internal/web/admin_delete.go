@@ -10,6 +10,7 @@ import (
 	"github.com/flosch/pongo2/v6"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/shahinshabab/deedflow-go/internal/db"
 	"github.com/shahinshabab/deedflow-go/internal/store"
 )
 
@@ -28,6 +29,7 @@ func objKey(o *adminObj) delKey { return delKey{o.m.Label, o.pkString()} }
 type delCollector struct {
 	a   *App
 	ctx context.Context
+	q   func() db.Querier
 
 	edges      map[delKey][]*adminObj // parent -> children, in the order found
 	roots      []*adminObj
@@ -45,7 +47,7 @@ type delUpdate struct {
 }
 
 func (a *App) newCollector(ctx context.Context) *delCollector {
-	return &delCollector{a: a, ctx: ctx, edges: map[delKey][]*adminObj{}, data: map[string][]*adminObj{},
+	return &delCollector{a: a, ctx: ctx, q: a.Store.Querier, edges: map[delKey][]*adminObj{}, data: map[string][]*adminObj{},
 		seen: map[delKey]bool{}, modelObjs: map[string]map[string]bool{}}
 }
 
@@ -113,7 +115,7 @@ func (c *delCollector) collect(objs []*adminObj, sourceAttr string) error {
 			}
 			order = " ORDER BY " + strings.Join(parts, ", ")
 		}
-		rows, err := c.a.Store.Querier().Query(c.ctx, fmt.Sprintf(`SELECT %s FROM %s t WHERE t."%s" = ANY($1)%s`,
+		rows, err := c.q().Query(c.ctx, fmt.Sprintf(`SELECT %s FROM %s t WHERE t."%s" = ANY($1)%s`,
 			rg.spec.selectList("t"), quoteIdent(rg.Table), rel.Column, order), ids)
 		if err != nil {
 			return err
@@ -228,31 +230,44 @@ func (a *App) getDeletedObjects(r *adminReq, objs []*adminObj) (*deletion, error
 
 // deleteCollected deletes what the collector found (Collector.delete):
 // SET_NULL updates first, then the rows, children before parents.
-func (a *App) deleteCollected(ctx context.Context, col *delCollector) error {
-	return a.Store.InTx(ctx, func(tx *store.Store) error {
-		q := tx.Querier()
-		for _, u := range col.updates {
-			if _, err := q.Exec(ctx, fmt.Sprintf(`UPDATE %s SET "%s" = NULL WHERE "%s" = ANY($1)`,
-				quoteIdent(u.table), u.column, u.pkCol), u.ids); err != nil {
-				return err
-			}
+func (a *App) deleteCollected(ctx context.Context, col *delCollector, q db.Querier) error {
+	for _, u := range col.updates {
+		if _, err := q.Exec(ctx, fmt.Sprintf(`UPDATE %s SET "%s" = NULL WHERE "%s" = ANY($1)`,
+			quoteIdent(u.table), u.column, u.pkCol), u.ids); err != nil {
+			return err
 		}
-		for i := len(col.modelOrder) - 1; i >= 0; i-- {
-			label := col.modelOrder[i]
-			g := adminSiteSpec.graph[label]
-			var ids []any
-			for _, o := range col.data[label] {
-				ids = append(ids, o.vals[o.m.PK])
-			}
-			if len(ids) == 0 {
-				continue
-			}
-			if _, err := q.Exec(ctx, fmt.Sprintf(`DELETE FROM %s WHERE "%s" = ANY($1)`, quoteIdent(g.Table), g.PKColumn), ids); err != nil {
-				return err
-			}
+	}
+	for i := len(col.modelOrder) - 1; i >= 0; i-- {
+		label := col.modelOrder[i]
+		g := adminSiteSpec.graph[label]
+		var ids []any
+		for _, o := range col.data[label] {
+			ids = append(ids, o.vals[o.m.PK])
 		}
-		return nil
+		if len(ids) == 0 {
+			continue
+		}
+		if _, err := q.Exec(ctx, fmt.Sprintf(`DELETE FROM %s WHERE "%s" = ANY($1)`, quoteIdent(g.Table), g.PKColumn), ids); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// withTx runs fn in a transaction (the request's queries then go through it).
+func (a *App) withTx(r *adminReq, fn func() error) error {
+	if r.tx != nil {
+		return fn()
+	}
+	return a.Store.InTx(r.c.Context(), func(tx *store.Store) error {
+		r.tx = tx
+		defer func() { r.tx = nil }()
+		return fn()
 	})
+}
+
+func (a *App) deleteWith(r *adminReq, col *delCollector) error {
+	return a.deleteCollected(r.c.Context(), col, r.q())
 }
 
 var _ = pgx.ErrNoRows
@@ -303,7 +318,7 @@ func (a *App) deleteSelected(r *adminReq, cl *changeList, selected []string, acr
 					return false, err
 				}
 			}
-			if err := a.deleteCollected(ctx, d.collector); err != nil {
+			if err := a.withTx(r, func() error { return a.deleteCollected(ctx, d.collector, r.q()) }); err != nil {
 				return false, err
 			}
 			items := m.VerboseName

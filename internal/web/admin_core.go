@@ -13,6 +13,8 @@ import (
 	"github.com/flosch/pongo2/v6"
 
 	"github.com/shahinshabab/deedflow-go/internal/auth"
+	"github.com/shahinshabab/deedflow-go/internal/db"
+	"github.com/shahinshabab/deedflow-go/internal/store"
 )
 
 // The admin site (Django's django.contrib.admin, as the DeedFlow project uses
@@ -80,6 +82,15 @@ type adminReq struct {
 	c     *Ctx
 	a     *App
 	perms *adminPerms
+	tx    *store.Store // set while a write runs in a transaction
+}
+
+// q is the database handle: the transaction while one is open.
+func (r *adminReq) q() db.Querier {
+	if r.tx != nil {
+		return r.tx.Querier()
+	}
+	return r.a.Store.Querier()
 }
 
 // adminView wraps an admin page: only active staff get in, anyone else is
@@ -410,6 +421,5 @@ func (a *App) adminPasswordChangeDone(r *adminReq)                  { a.adminNot
 func (a *App) adminAutocomplete(r *adminReq)                        { a.adminNotFound(r.c) }
 func (a *App) adminViewOnSite(r *adminReq)                          { a.adminNotFound(r.c) }
 func (a *App) adminUserPassword(r *adminReq, m *modelSpec)          { a.adminNotFound(r.c) }
-func (a *App) adminChangeForm(r *adminReq, m *modelSpec, pk string) { a.adminNotFound(r.c) }
 func (a *App) adminHistory(r *adminReq, m *modelSpec)               { a.adminNotFound(r.c) }
 func (a *App) adminDelete(r *adminReq, m *modelSpec)                { a.adminNotFound(r.c) }
