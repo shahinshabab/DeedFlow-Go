@@ -36,7 +36,7 @@ type Session struct {
 
 func newSession() *Session {
 	return &Session{
-		row:   &store.SessionRow{Key: store.NewSessionKey(), Data: map[string]any{}, ExpiresAt: time.Now().Add(sessionAge)},
+		row: &store.SessionRow{Key: store.NewSessionKey(), Data: map[string]any{}, ExpiresAt: time.Now().Add(sessionAge)},
 	}
 }
 
