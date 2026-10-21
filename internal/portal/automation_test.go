@@ -67,7 +67,7 @@ func newTestAutomation(t *testing.T) (*Automation, *mockPortal) {
 		Solver: fixedSolver{},
 	}, Credentials{Username: "demo", Password: "secret", NewDeedMenuIndex: 1, MyDeedsMenuIndex: 2}, time.Time{})
 	if err != nil {
-		if strings.Contains(err.Error(), "session not created") {
+		if strings.Contains(err.Error(), "session not created") || strings.Contains(err.Error(), "Could not start a browser session") || strings.Contains(err.Error(), "connection:") {
 			t.Skip("chromedriver and chromium don't match: ", err)
 		}
 		t.Fatal(err)

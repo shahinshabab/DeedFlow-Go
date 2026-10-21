@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{% if record %}{{ record.name }}{% else %}New filing sheet{% endif %}{% endblock %}
+{% block extra_head %}
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Malayalam:wght@400;700&family=Noto+Serif+Malayalam:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'filereader/filing.css' %}">
+{% endblock %}
+{% block content %}
+<div class="page-header fs-noprint">
+  <div>
+    <h1>{% if view %}Filing sheet preview{% elif record %}Filing sheet{% else %}New filing sheet{% endif %}</h1>
+    {% if not sheet %}<p class="page-subtitle">Open a deed (PageMaker, InDesign IDML or PDF) and get its text written out on ruled pages like a notebook: the text runs on continuously, tables keep their columns, and side labels become ordinary lines. The first page leaves its first and last lines blank, and every other page its last line. Correct any spelling, draw table lines, set the margins for odd and even pages and the lines, then print. The sheet is saved under Filing sheets to come back to; the file you upload isn't kept.</p>{% endif %}
+  </div>
+</div>
+
+{% if not sheet %}
+<div class="card mb-3 fs-noprint">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" class="fs-upload">
+      {% csrf_token %}
+      <label class="dropzone mb-0 flex-grow-1" for="fs_file" data-dropzone>
+        <input type="file" id="fs_file" name="file" accept="{{ accept }}" required>
+        <span class="dz-icon"><i class="bi bi-journal-richtext"></i></span>
+        <span class="dz-title">Drop a deed here, or click to browse</span>
+        <span class="dz-hint">PageMaker (.pmd, .p65), InDesign export (.idml) or PDF, up to 100 MB</span>
+        <span class="dz-file"><i class="bi bi-paperclip"></i><span data-dz-name></span></span>
+      </label>
+      <button type="submit" class="btn btn-brand align-self-center"><i class="bi bi-journal-arrow-up"></i> Make filing sheet</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="alert alert-danger fs-noprint" role="alert">
+  <i class="alert-icon bi bi-exclamation-octagon-fill"></i>
+  <div>{% if filename %}<strong>{{ filename }}:</strong> {% endif %}{{ error }}</div>
+</div>
+{% endif %}
+
+{% if sheet %}
+<div class="fs-toolbar card fs-noprint" id="fsToolbar">
+  <div class="fs-toolbar-row">
+    <div class="fs-file">
+      <strong class="text-truncate">{{ record.name }}</strong>
+      <span class="text-muted small">{{ sheet.format }} · created {{ record.created_at|date:"d M Y" }} · <a href="{% url 'filereader:filing' %}">All filing sheets</a>{% if not view %} · <span id="fsSaveState">{% if record.content %}Saved {{ record.updated_at|date:"d M Y, H:i" }}{% else %}Not saved yet{% endif %}</span>{% endif %}</span>
+    </div>
+    <div class="fs-actions">
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="fsCopy"><i class="bi bi-clipboard"></i> Copy text</button>
+      {% if view %}
+      <a href="{% url 'filereader:filing_edit' record.public_id %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i> Edit</a>
+      {% else %}
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="fsReset" title="Throw away your corrections and start again from the file"><i class="bi bi-arrow-counterclockwise"></i> Undo all edits</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="fsDraw" aria-pressed="false" title="Drag on a page to draw a straight line across or down. Drag a line to move it, or its ends to make it longer or shorter. Press Esc when done"><i class="bi bi-border-style"></i> Draw lines</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="fsTableLines" title="Turns the lines between the tables' columns into drawn lines you can move and stretch. They then stay where they are when the text moves; Undo all edits brings the tables' own lines back" hidden><i class="bi bi-table"></i> Edit table lines</button>
+      <button type="button" class="btn btn-outline-danger btn-sm" id="fsDeleteLine" title="Deletes the picked line (or press Delete)" hidden><i class="bi bi-trash"></i> Delete line</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="fsFold" aria-expanded="true" aria-controls="fsSettings"><i class="bi bi-sliders"></i> Settings <i class="bi bi-chevron-up" data-fold-icon></i></button>
+      <button type="button" class="btn btn-outline-brand btn-sm" id="fsSave" title="Saves the sheet; it also saves itself every minute while you edit"><i class="bi bi-floppy"></i> Save</button>
+      {% endif %}
+      <button type="button" class="btn btn-brand btn-sm" id="fsPrint"><i class="bi bi-printer"></i> Print</button>
+    </div>
+  </div>
+  <div class="fs-settings" id="fsSettings"{% if view %} hidden{% endif %}>
+    <fieldset class="fs-group">
+      <legend>Odd pages (mm)</legend>
+      <label>Top <input type="number" class="form-control form-control-sm" id="fsTop" min="0" max="150" step="1" title="Where the first line's writing space starts"></label>
+      <label>Bottom <input type="number" class="form-control form-control-sm" id="fsBottom" min="0" max="150" step="0.5" title="Set by the number of lines and their gap; changing it changes the number of lines"></label>
+      <label>Left <input type="number" class="form-control form-control-sm" id="fsLeft" min="0" max="100" step="1"></label>
+      <label>Right <input type="number" class="form-control form-control-sm" id="fsRight" min="0" max="100" step="1"></label>
+    </fieldset>
+    <fieldset class="fs-group">
+      <legend>Even pages (mm)</legend>
+      <label>Top <input type="number" class="form-control form-control-sm" id="fsTopEven" min="0" max="150" step="1"></label>
+      <label>Bottom <input type="number" class="form-control form-control-sm" id="fsBottomEven" min="0" max="150" step="0.5" title="Set by the number of lines and their gap; changing it changes the number of lines"></label>
+      <label>Left <input type="number" class="form-control form-control-sm" id="fsLeftEven" min="0" max="100" step="1"></label>
+      <label>Right <input type="number" class="form-control form-control-sm" id="fsRightEven" readonly tabindex="-1" title="Every page has the same width of text, so this follows from the odd pages' margins and the even pages' left margin"></label>
+    </fieldset>
+    <fieldset class="fs-group">
+      <legend>Lines</legend>
+      <label>Lines per page <input type="number" class="form-control form-control-sm" id="fsLines" min="3" max="120" step="1"></label>
+      <label>Line gap (mm) <input type="number" class="form-control form-control-sm" id="fsGap" min="3" max="30" step="0.5" title="Distance between two ruled lines"></label>
+      <label>Text above line (mm) <input type="number" class="form-control form-control-sm" id="fsLift" min="0" max="10" step="0.25" title="How far the bottom of the letters sits above the ruled line"></label>
+      <label class="fs-check" title="The blue lines and red margin lines always show here; tick this to print them too"><input type="checkbox" class="form-check-input" id="fsPrintLines"> Print lines</label>
+    </fieldset>
+    <fieldset class="fs-group">
+      <legend>Pages</legend>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="fsAddPage"><i class="bi bi-file-earmark-plus"></i> Add page</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="fsRemovePage" title="Removes a blank page from the end; pages with text stay" disabled><i class="bi bi-file-earmark-minus"></i> Remove page</button>
+      <span class="small text-muted" id="fsPageInfo"></span>
+    </fieldset>
+    <fieldset class="fs-group">
+      <legend>Text</legend>
+      <label>Font size (pt) <input type="number" class="form-control form-control-sm" id="fsSize" min="6" max="48" step="0.5"></label>
+      <label>Font
+        <select class="form-select form-select-sm" id="fsFont">
+          <option value="karthika">ML-TT Karthika</option>
+          <option value="serif">Noto Serif Malayalam</option>
+          <option value="sans">Noto Sans Malayalam</option>
+        </select>
+      </label>
+      <label>Paper
+        <select class="form-select form-select-sm" id="fsPaper">
+          <option value="a4">A4</option>
+          <option value="legal">Legal</option>
+          <option value="letter">Letter</option>
+        </select>
+      </label>
+      <div class="btn-group btn-group-sm fs-align" role="group" aria-label="Align the paragraph" title="Aligns the paragraph the cursor is in (press Enter to start a new paragraph)">
+        <button type="button" class="btn btn-outline-secondary" data-align="left" aria-label="Align left"><i class="bi bi-text-left"></i></button>
+        <button type="button" class="btn btn-outline-secondary" data-align="center" aria-label="Centre"><i class="bi bi-text-center"></i></button>
+        <button type="button" class="btn btn-outline-secondary" data-align="right" aria-label="Align right"><i class="bi bi-text-right"></i></button>
+        <button type="button" class="btn btn-outline-secondary" data-align="justify" aria-label="Justify"><i class="bi bi-justify"></i></button>
+      </div>
+      <label>Zoom
+        <select class="form-select form-select-sm" id="fsZoom">
+          <option value="fit" selected>Two pages</option>
+          <option value="0.5">50%</option>
+          <option value="0.75">75%</option>
+          <option value="1">100%</option>
+        </select>
+      </label>
+    </fieldset>
+  </div>
+  <div class="fs-note small text-muted" id="fsNote" hidden></div>
+</div>
+
+<div class="fs-desk fs-noprint" id="fsDesk">
+  <div class="fs-scaler" id="fsScaler">
+    <div class="fs-strip" id="fsStrip">
+      <div class="fs-sheets" id="fsSheets" aria-hidden="true"></div>
+      <div class="fs-content" id="fsContent" contenteditable="{% if view %}false{% else %}true{% endif %}" spellcheck="false" aria-label="Filing sheet text"></div>
+      <div class="fs-drawn{% if view %} fs-drawn-view{% endif %}" id="fsDrawn"></div>
+    </div>
+  </div>
+</div>
+<div class="fs-print" id="fsPrintPages" aria-hidden="true"></div>
+{{ sheet|json_script:"fs-doc" }}
+{{ saved|json_script:"fs-saved" }}
+<style id="fsPageStyle"></style>
+{% endif %}
+{% endblock %}
+{% block extra_scripts %}{% include "deeds/_dropzone_js.html" %}
+{% if sheet %}
+<script>window.FS_CONVERT_URL = "{% url 'filereader:filing_convert' %}"; window.FS_CSRF = "{{ csrf_token }}";
+window.FS_VIEW = {{ view|yesno:"true,false" }};{% if not view %} window.FS_SAVE_URL = "{% url 'filereader:filing_save' record.public_id %}";{% endif %}</script>
+<script src="{% static 'filereader/filing.js' %}"></script>
+{% endif %}
+{% endblock %}

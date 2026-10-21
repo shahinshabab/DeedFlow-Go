@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Filing sheets{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Filing sheets</h1>
+    <p class="page-subtitle">Deeds written out on ruled pages for filing, newest first. Open one to view it as it prints, or to carry on editing.</p>
+  </div>
+  <div class="page-actions">
+    <a href="{% url 'filereader:filing_new' %}" class="btn btn-brand">
+      <i class="bi bi-journal-arrow-up"></i> New filing sheet
+    </a>
+  </div>
+</div>
+
+<form method="get" class="card filter-bar mb-3">
+  <div class="card-body py-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-lg-6">
+        <label class="form-label mb-1" for="q">Search</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="search" class="form-control" id="q" name="q" value="{{ q }}" placeholder="File name">
+        </div>
+      </div>
+      <div class="col-lg-2 d-flex gap-2">
+        <button type="submit" class="btn btn-brand flex-grow-1"><i class="bi bi-search"></i> Search</button>
+        {% if q %}
+          <a href="{% url 'filereader:filing' %}" class="btn btn-outline-secondary btn-icon" title="Clear search" aria-label="Clear search"><i class="bi bi-x-lg"></i></a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="card overflow-hidden">
+  {% if page.object_list %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle table-stack">
+        <thead>
+          <tr>
+            <th>File name</th>
+            <th>Date created</th>
+            <th>Pages</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sheet in page.object_list %}
+            <tr>
+              <td><a href="{% url 'filereader:filing_edit' sheet.public_id %}" class="cell-title">{{ sheet.name }}</a></td>
+              <td data-label="Date created" class="text-nowrap">{{ sheet.created_at|date:"d M Y, H:i" }}</td>
+              <td data-label="Pages">{{ sheet.pages }}</td>
+              <td class="text-end text-nowrap cell-actions">
+                <a href="{% url 'filereader:filing_view' sheet.public_id %}" class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-eye"></i> View
+                </a>
+                <a href="{% url 'filereader:filing_edit' sheet.public_id %}" class="btn btn-sm btn-outline-brand">
+                  <i class="bi bi-pencil"></i> Edit
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% elif q %}
+    <div class="empty-state">
+      <span class="icon-tile"><i class="bi bi-search"></i></span>
+      <h2>No filing sheets match "{{ q }}"</h2>
+      <p>Try another part of the file name.</p>
+      <a href="{% url 'filereader:filing' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> Clear search</a>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <span class="icon-tile"><i class="bi bi-journal-richtext"></i></span>
+      <h2>No filing sheets yet</h2>
+      <p>Open a deed (PageMaker, InDesign IDML or PDF) to write it out on ruled pages.</p>
+      <a href="{% url 'filereader:filing_new' %}" class="btn btn-brand"><i class="bi bi-journal-arrow-up"></i> New filing sheet</a>
+    </div>
+  {% endif %}
+  {% if page.paginator.num_pages > 1 %}
+    <div class="pager">
+      <span>Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.paginator.count }}</span>
+      <div class="d-flex gap-2">
+        {% if page.has_previous %}
+          <a class="btn btn-sm btn-outline-secondary" href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Previous</a>
+        {% endif %}
+        {% if page.has_next %}
+          <a class="btn btn-sm btn-outline-secondary" href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page.next_page_number }}">Next <i class="bi bi-chevron-right"></i></a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

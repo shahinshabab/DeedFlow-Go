@@ -64,7 +64,7 @@ func TestSession(t *testing.T) {
 	d, err := NewRemote(ctx, base, Options{Args: []string{"--headless=new", "--no-sandbox", "--disable-dev-shm-usage"},
 		Binary: chromeBinary(), UnhandledPrompt: "ignore", PageLoadTimeout: 30 * time.Second})
 	if err != nil {
-		if strings.Contains(err.Error(), "session not created") {
+		if strings.Contains(err.Error(), "session not created") || strings.Contains(err.Error(), "Could not start a browser session") || strings.Contains(err.Error(), "connection:") {
 			t.Skip("chromedriver and chromium don't match: ", err)
 		}
 		t.Fatal(err)

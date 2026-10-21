@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}File reader{% endblock %}
+{% block extra_head %}
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Malayalam:wght@400;700&family=Noto+Serif+Malayalam:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'filereader/reader.css' %}">
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>File reader</h1>
+    <p class="page-subtitle">Open a PageMaker, InDesign (IDML) or PDF file and see every page with its text where it sits in the original. Legacy Malayalam fonts such as ML-TT are converted to Unicode. Nothing you upload here is stored.</p>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" class="fr-upload">
+      {% csrf_token %}
+      <label class="dropzone mb-0 flex-grow-1" for="fr_file" data-dropzone>
+        <input type="file" id="fr_file" name="file" accept="{{ accept }}" multiple required>
+        <span class="dz-icon"><i class="bi bi-file-earmark-richtext"></i></span>
+        <span class="dz-title">Drop a file here, or click to browse</span>
+        <span class="dz-hint">PageMaker (.pmd, .p65), InDesign export (.idml) or PDF, up to 100 MB</span>
+        <span class="dz-file"><i class="bi bi-paperclip"></i><span data-dz-name></span></span>
+      </label>
+      <div class="fr-upload-actions">
+        <button type="submit" name="action" value="read" class="btn btn-brand"><i class="bi bi-eye"></i> Read file</button>
+        <button type="submit" name="action" value="idml" class="btn btn-outline-secondary" title="Download a PageMaker file as an InDesign file (CS4 or later), with ruled tables made real tables"><i class="bi bi-file-earmark-arrow-down"></i> Convert to InDesign</button>
+        <button type="submit" name="action" value="jsx" class="btn btn-link btn-sm p-0" title="InDesign CS3 can't open IDML: this script builds the document inside InDesign instead">For InDesign CS3 (script)</button>
+      </div>
+    </form>
+    <p class="text-muted small mt-2 mb-0">Have an InDesign .indd file? In InDesign, choose File &gt; Export and pick "InDesign Markup (IDML)", then upload that. "Convert to InDesign" turns a PageMaker file into an .idml that InDesign CS4 or later opens; save it there as .indd. InDesign CS3 can't open IDML, so for CS3 download the script instead and run it from InDesign's Scripts panel (Window &gt; Automation &gt; Scripts); it saves the .indd on your desktop. To convert many PageMaker files at once, select them all (up to 30 MB together): you get one script that saves every one of them as .indd.</p>
+  </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" role="alert">
+  <i class="alert-icon bi bi-exclamation-octagon-fill"></i>
+  <div>{% if filename %}<strong>{{ filename }}:</strong> {% endif %}{{ error }}</div>
+</div>
+{% endif %}
+
+{% if document %}
+{% for warning in document.warnings %}
+<div class="alert alert-warning" role="alert">
+  <i class="alert-icon bi bi-exclamation-triangle-fill"></i><div>{{ warning }}</div>
+</div>
+{% endfor %}
+<div class="fr-toolbar card">
+  <div class="fr-toolbar-info">
+    <strong class="text-truncate">{{ document.name }}</strong>
+    <span class="text-muted small">{{ document.format }} · {{ document.pages|length }} page{{ document.pages|length|pluralize }}</span>
+  </div>
+  <div class="fr-toolbar-actions">
+    <select class="form-select form-select-sm" id="frZoom" aria-label="Zoom">
+      <option value="fit" selected>Fit width</option>
+      <option value="0.5">50%</option>
+      <option value="0.75">75%</option>
+      <option value="1">100%</option>
+      <option value="1.5">150%</option>
+      <option value="2">200%</option>
+    </select>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="frCopyAll"><i class="bi bi-clipboard"></i> Copy all text</button>
+  </div>
+</div>
+<div id="frPages" class="fr-pages" aria-live="polite"></div>
+{{ document|json_script:"fr-doc" }}
+{% endif %}
+{% endblock %}
+{% block extra_scripts %}{% include "deeds/_dropzone_js.html" %}
+<script>
+  // Reading loads a new page, so the button shows it's busy; a conversion
+  // only downloads a file and the page stays as it is.
+  var LIMIT = 30 * 1024 * 1024;  // what the server takes in one upload
+  document.querySelector("form.fr-upload").addEventListener("submit", function (e) {
+    var btn = e.submitter;
+    var files = document.getElementById("fr_file").files, total = 0;
+    for (var i = 0; i < files.length; i++) total += files[i].size;
+    if (total > LIMIT) {
+      e.preventDefault();
+      alert("These files are " + Math.ceil(total / 1048576) + " MB together; the limit is 30 MB at a time. Please convert them in smaller groups.");
+      return;
+    }
+    if (btn && btn.value === "read" && files.length > 1) {
+      e.preventDefault();
+      alert("Reading shows one file at a time. Several files can be converted to InDesign together.");
+      return;
+    }
+    if (!btn || btn.value !== "read") return;
+    setTimeout(function () {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Reading…';
+    }, 0);
+  });
+</script>
+{% if document %}<script src="{% static 'filereader/reader.js' %}"></script>{% endif %}
+{% endblock %}

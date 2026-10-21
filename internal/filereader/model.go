@@ -207,6 +207,9 @@ func pyRound(v float64, nd int) float64 {
 	return r
 }
 
+// PyRepr is Python's repr(float).
+func PyRepr(v float64) string { return pyRepr(v) }
+
 // pyRepr is Python's repr(float).
 func pyRepr(v float64) string {
 	switch {
