@@ -1,0 +1,89 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      # Host port 5433, not 5432: another, unrelated project's Postgres
+      # container is often already using 5432 on this machine. It doesn't
+      # affect the app itself - web/worker/adminer all talk to this service
+      # over the Docker network as "db:5432"; this mapping only matters if
+      # you connect with a local psql/GUI client from outside Docker.
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # The web server. It creates / updates the database tables when it starts.
+  web:
+    build: .
+    restart: unless-stopped
+    command: ["serve"]
+    volumes:
+      - media:/app/media
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # The background worker: PDF processing, portal submission, and the nightly
+  # payment-receipt collection (no Redis, Celery or beat: jobs and the
+  # schedule live in Postgres).
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["worker"]
+    volumes:
+      - media:/app/media
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+      selenium:
+        condition: service_started
+
+  selenium:
+    build: ./docker/selenium  # selenium/standalone-chrome:127.0 + Malayalam fonts (see the Dockerfile)
+    restart: unless-stopped
+    # Chrome needs more than Docker's default 64MB /dev/shm or it crashes
+    # on non-trivial pages.
+    shm_size: "2gb"
+    environment:
+      # Default is 300s (5 min) of no *WebDriver* command - it does not
+      # see mouse/keyboard activity a human sends straight into the
+      # browser over noVNC, so a manual multi-step form fill can get its
+      # session silently killed mid-way even while clearly "in use". Set
+      # high enough to comfortably cover a manual session; automated runs
+      # aren't affected either way.
+      SE_NODE_SESSION_TIMEOUT: "3600"
+    ports:
+      - "4444:4444"  # WebDriver / Selenium Grid endpoint
+      - "7900:7900"  # noVNC - watch the browser live at http://localhost:7900 (password: secret)
+
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    ports:
+      # Host port 8083: 8080 and 8081 are both taken by other, unrelated
+      # projects already running on this machine - see the note on db's
+      # port above.
+      - "8083:8080"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
+  media:

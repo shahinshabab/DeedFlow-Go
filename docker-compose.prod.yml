@@ -1,0 +1,43 @@
+# Production overrides for the DeedFlow server - used by
+# .github/workflows/deploy.yml as:
+#   docker compose -p deedflow -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# - Caddy is the only thing exposed publicly (80/443) and proxies to web.
+# - Everything else is bound to 127.0.0.1 only; reach it from your PC over
+#   an SSH tunnel, e.g. `ssh -L 7900:localhost:7900 DeedFlow` for noVNC.
+# - Uploads live in a named volume so redeploys (which re-checkout the repo)
+#   never touch them.
+
+services:
+  db:
+    ports: !override
+      - "127.0.0.1:5433:5432"
+
+  web:
+    ports: !reset []
+
+  selenium:
+    ports: !override
+      - "127.0.0.1:4444:4444"
+      - "127.0.0.1:7900:7900"
+
+  adminer:
+    ports: !override
+      - "127.0.0.1:8083:8080"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -347,7 +347,7 @@ func (fl *Field) clean(raw string) (any, string) {
 			return (*db.Decimal)(nil), ""
 		}
 		d, err := db.ParseDecimal(s)
-		if err != nil || strings.ContainsAny(strings.ToLower(s), "e") && false {
+		if err != nil {
 			return (*db.Decimal)(nil), "Enter a number."
 		}
 		if msg := checkDecimal(s, fl.MaxDigits, fl.DecimalPlaces); msg != "" {
@@ -503,7 +503,7 @@ func (f *Form) widgetHTML(fl *Field) string {
 		b.WriteString(">\n")
 		for _, c := range fl.Choices {
 			sel := ""
-			if c.Value == value || (value == "" && c.Value == "" && false) {
+			if c.Value == value {
 				sel = " selected"
 			}
 			b.WriteString(fmt.Sprintf(`  <option value="%s"%s>%s</option>`+"\n", esc(c.Value), sel, esc(c.Label)))

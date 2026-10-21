@@ -1,0 +1,10 @@
+shahinanalytics.com, www.shahinanalytics.com {
+	encode gzip
+	# Deed PDF uploads are the only large requests; DeedFlow rejects PDFs
+	# over 25 MB with a clear message, this just stops anything far bigger
+	# before it is buffered to disk.
+	request_body {
+		max_size 30MB
+	}
+	reverse_proxy web:8000
+}

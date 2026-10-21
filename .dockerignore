@@ -1,0 +1,7 @@
+.git
+.github
+.env
+media
+postgres_data
+*.test
+tools

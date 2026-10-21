@@ -38,7 +38,6 @@ type Config struct {
 	AIClaudeFallback bool
 
 	TesseractCmd string
-	PMD2JSONBin  string
 
 	AWSRegion        string
 	AWSSESSender     string
@@ -121,7 +120,6 @@ func Load() (*Config, error) {
 		AnthropicModel:     env("ANTHROPIC_MODEL", "claude-sonnet-5"),
 		AIClaudeFallback:   env("AI_CLAUDE_FALLBACK", "0") == "1",
 		TesseractCmd:       env("TESSERACT_CMD", "tesseract"),
-		PMD2JSONBin:        env("PMD2JSON_BIN", "pmd2json"),
 		AWSRegion:          env("AWS_REGION", "ap-south-1"),
 		AWSSESSender:       strings.Trim(strings.TrimSpace(env("AWS_SES_SENDER", "")), `"'`),
 		EmailHost:          env("EMAIL_HOST", "localhost"),
