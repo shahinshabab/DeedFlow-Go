@@ -203,6 +203,111 @@ func (a *App) adminDelete(r *adminReq, m *modelSpec) {
 	}
 	ctx["to_field_var"] = toFieldVr
 	ctx["is_popup_var"] = popupVar
-	ctx["media"] = adminMedia(false)["js"]
+	ctx["media"] = safe(a.modelAdminMedia().html())
 	r.render("admin/delete_confirmation.html", ctx)
+}
+
+// adminAutocomplete is AutocompleteJsonView: the options of a select2 box.
+func (a *App) adminAutocomplete(r *adminReq) {
+	c := r.c
+	q := c.R.URL.Query()
+	denied := func() { a.adminForbiddenPage(c) }
+	app, model, field := q.Get("app_label"), q.Get("model_name"), q.Get("field_name")
+	if app == "" || model == "" || field == "" {
+		denied()
+		return
+	}
+	var src *modelSpec
+	for _, g := range adminSiteSpec.graph {
+		if g.AppLabel == app && g.ModelName == model {
+			src = g.spec
+		}
+	}
+	if src == nil {
+		denied()
+		return
+	}
+	sf := src.field(field)
+	if sf == nil || sf.Related == nil {
+		denied()
+		return
+	}
+	remote := adminSiteSpec.models[sf.Related.Label]
+	if remote == nil {
+		denied()
+		return
+	}
+	if len(remote.SearchFields) == 0 {
+		http.Error(c.W, remote.AdminClass+" must have search_fields for the autocomplete_view.", http.StatusNotFound)
+		return
+	}
+	if !r.perms.has(remote, "view") {
+		denied()
+		return
+	}
+	qq := newQuery(remote)
+	if err := qq.search(remote.SearchFields, q.Get("term")); err != nil {
+		c.ServerError(err)
+		return
+	}
+	order := remote.AdminOrdering
+	if len(order) == 0 {
+		order = remote.Ordering
+	}
+	qq.setOrdering(order)
+	var count int
+	if err := r.q().QueryRow(c.Context(), "SELECT COUNT(*)"+qq.fromWhere(), qq.args...).Scan(&count); err != nil {
+		c.ServerError(err)
+		return
+	}
+	const perPage = 20
+	numPages := (count + perPage - 1) / perPage
+	if numPages < 1 {
+		numPages = 1
+	}
+	page := 1
+	if v := q.Get("page"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil && v != "last" {
+			http.Error(c.W, "Page is not 'last', nor can it be converted to an int.", http.StatusNotFound)
+			return
+		}
+		if v == "last" {
+			n = numPages
+		}
+		if n < 1 || n > numPages {
+			http.Error(c.W, fmt.Sprintf("Invalid page (%s): That page contains no results", v), http.StatusNotFound)
+			return
+		}
+		page = n
+	}
+	rows, err := r.q().Query(c.Context(), "SELECT "+remote.selectList("t")+qq.fromWhere()+qq.orderLimit(perPage, (page-1)*perPage), qq.args...)
+	if err != nil {
+		c.ServerError(err)
+		return
+	}
+	objs, err := a.scanObjs(remote, rows)
+	if err != nil {
+		c.ServerError(err)
+		return
+	}
+	re := r.reprEnv()
+	var items []string
+	for _, o := range objs {
+		items = append(items, fmt.Sprintf(`{"id": %s, "text": %s}`, pyString(o.pkString()), pyString(re.str(o))))
+	}
+	body := fmt.Sprintf(`{"results": [%s], "pagination": {"more": %t}}`, strings.Join(items, ", "), page < numPages)
+	c.W.Header().Set("Content-Type", "application/json")
+	_, _ = c.W.Write([]byte(body))
+}
+
+// adminViewOnSite is the "view on site" shortcut; none of the models has an absolute URL.
+func (a *App) adminViewOnSite(r *adminReq) {
+	c := r.c
+	ct, err := strconv.ParseInt(c.PathValue("content_type_id"), 10, 64)
+	if err != nil || a.contentTypeLabel(c.Context(), ct) == "" {
+		http.Error(c.W, fmt.Sprintf("Content type %s object %s doesn’t exist", c.PathValue("content_type_id"), c.PathValue("object_id")), http.StatusNotFound)
+		return
+	}
+	http.Error(c.W, fmt.Sprintf("Content type %d object %s doesn’t have a get_absolute_url() method", ct, c.PathValue("object_id")), http.StatusNotFound)
 }

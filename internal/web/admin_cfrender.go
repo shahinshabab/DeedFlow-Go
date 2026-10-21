@@ -207,7 +207,7 @@ func (v *cfView) inlineMap(fs *inlineFS) map[string]any {
 		m := map[string]any{
 			"fieldsets": fieldsets, "has_original": original != nil, "show_url": false, "absolute_url": "",
 			"needs_explicit_pk_field": true, "cell_count": cells,
-			"form": map[string]any{"non_field_errors": safeOrEmpty(f.nonFieldErrorsHTML())},
+			"form":        map[string]any{"non_field_errors": safeOrEmpty(f.nonFieldErrorsHTML())},
 			"model_admin": map[string]any{"show_change_link": false, "has_registered_model": adminSiteSpec.models[fs.m.Label] != nil},
 		}
 		if original != nil {
@@ -284,7 +284,7 @@ func (v *cfView) inlineMap(fs *inlineFS) map[string]any {
 			"prefix": fs.prefix, "management_form": safe(fs.managementForm()), "non_form_errors": safe(nonForm),
 			"max_num": fs.maxNum, "can_delete": fs.canDelete,
 		},
-		"opts": map[string]any{"verbose_name": fs.spec.VerboseName, "verbose_name_plural": fs.spec.VerboseNamePl, "template": template},
+		"opts":  map[string]any{"verbose_name": fs.spec.VerboseName, "verbose_name_plural": fs.spec.VerboseNamePl, "template": template},
 		"forms": forms, "fields": cols, "classes": "", "is_collapsible": false,
 		"has_add_permission": fs.canAdd, "has_change_permission": fs.canChange, "has_delete_permission": fs.hasDeletePerm,
 		"has_view_permission": fs.canView, "inline_formset_data": fs.formsetData(),
@@ -298,17 +298,7 @@ func strPtrNonEmpty(s string) *string {
 	return &s
 }
 
-func (v *cfView) mediaFor() any {
-	key := v.m.Label + "|add"
-	if !v.add {
-		key = v.m.Label + "|change"
-	}
-	s := adminMediaTable[key]
-	if s == "" {
-		s = adminMediaTable[v.m.Label+"|add"]
-	}
-	return safe(s)
-}
+func (v *cfView) mediaFor() any { return safe(v.pageMedia().html()) }
 
 // renderChangeForm is render_change_form plus the context changeform_view builds.
 func (a *App) renderChangeForm(v *cfView, isPost, formValidated bool, pf url.Values) {
@@ -347,8 +337,8 @@ func (a *App) renderChangeForm(v *cfView, isPost, formValidated bool, pf url.Val
 	ctx["opts"] = a.adminOpts(m)
 	ctx["app_label"] = m.AppLabel
 	ctx["media"] = v.mediaFor()
-	ctx["is_popup"] = false
-	ctx["to_field"] = nil
+	ctx["is_popup"] = r.popup()
+	ctx["to_field"] = r.toFieldParam()
 	ctx["is_popup_var"] = popupVar
 	ctx["to_field_var"] = toFieldVr
 	ctx["preserved_filters"] = preserved
@@ -417,10 +407,11 @@ func (a *App) renderChangeForm(v *cfView, isPost, formValidated bool, pf url.Val
 		showCont = v
 	}
 	canSave := (hasChange && !add) || (hasAdd && add) || hasEditableInline
-	canSaveAdd := hasAdd && (add || true) && canSave
-	canCont := canSave && hasView && showCont
+	isPopup := r.popup()
+	canSaveAdd := hasAdd && !isPopup && canSave
+	canCont := !isPopup && canSave && hasView && showCont
 	ctx["can_change"] = hasChange || hasEditableInline
-	ctx["show_delete_link"] = hasDelete && !add
+	ctx["show_delete_link"] = !isPopup && hasDelete && !add
 	ctx["show_save_as_new"] = false
 	ctx["show_save_and_add_another"] = canSaveAdd
 	ctx["show_save_and_continue"] = canCont

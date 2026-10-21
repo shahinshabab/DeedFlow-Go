@@ -86,6 +86,30 @@ type adminReq struct {
 	repr  *reprEnv
 }
 
+// popup reports whether the request is for a related-object popup window.
+func (r *adminReq) popup() bool {
+	if _, ok := r.c.R.URL.Query()[popupVar]; ok {
+		return true
+	}
+	if r.c.R.Method == http.MethodPost {
+		_, ok := r.c.PostForm()[popupVar]
+		return ok
+	}
+	return false
+}
+
+// toFieldParam is the _to_field of a popup request.
+func (r *adminReq) toFieldParam() any {
+	v := r.c.R.URL.Query().Get(toFieldVr)
+	if r.c.R.Method == http.MethodPost && r.c.PostForm().Get(toFieldVr) != "" {
+		v = r.c.PostForm().Get(toFieldVr)
+	}
+	if v == "" {
+		return nil
+	}
+	return v
+}
+
 // reprEnv is the request's str() helper, shared by all its forms.
 func (r *adminReq) reprEnv() *reprEnv {
 	if r.repr == nil {
@@ -428,8 +452,3 @@ func (a *App) adminJSI18N(r *adminReq) {
 	r.c.W.Header().Set("Content-Type", `text/javascript; charset="utf-8"`)
 	_, _ = r.c.W.Write(adminJSI18N)
 }
-
-func (a *App) adminPasswordChange(r *adminReq)                      { a.adminNotFound(r.c) }
-func (a *App) adminPasswordChangeDone(r *adminReq)                  { a.adminNotFound(r.c) }
-func (a *App) adminAutocomplete(r *adminReq)                        { a.adminNotFound(r.c) }
-func (a *App) adminViewOnSite(r *adminReq)                          { a.adminNotFound(r.c) }

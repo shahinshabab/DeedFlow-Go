@@ -127,7 +127,7 @@ var reDecimal = regexp.MustCompile(`^([+-]?)(\d[\d_]*(?:\.[\d_]*)?|\.\d[\d_]*)(?
 // parseDecimal is Python's Decimal(str): ok is false for what raises
 // InvalidOperation; finite is false for NaN and infinities.
 func parseDecimal(s string) (d pyDecimal, finite bool, ok bool) {
-	s = pyStrip(s)
+	s = asciiDigits(pyStrip(s))
 	low := strings.ToLower(strings.TrimLeft(s, "+-"))
 	switch low {
 	case "inf", "infinity", "nan", "snan":
@@ -241,27 +241,129 @@ func decimalEqual(a, b string) bool {
 
 // --- dates and times -----------------------------------------------------------------------
 
-var dateFormats = []string{"2006-01-02", "01/02/2006", "01/02/06"}
+// strptime parses s the way Python's datetime.strptime does for the
+// directives the input formats use (%Y %y %m %d %H %M %S %f); ok is false for
+// anything that raises ValueError.
+var strptimeCache = map[string]*regexp.Regexp{}
+
+var strptimeDirective = map[byte]string{
+	'Y': `(?P<Y>\d\d\d\d)`, 'y': `(?P<y>\d\d)`, 'm': `(?P<m>1[0-2]|0[1-9]|[1-9])`,
+	'd': `(?P<d>3[0-1]|[1-2]\d|0[1-9]|[1-9]| [1-9])`, 'H': `(?P<H>2[0-3]|[0-1]\d|\d)`,
+	'M': `(?P<M>[0-5]\d|\d)`, 'S': `(?P<S>6[0-1]|[0-5]\d|\d)`, 'f': `(?P<f>[0-9]{1,6})`,
+	'b': `(?P<b>jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)`,
+	'B': `(?P<B>january|february|march|april|may|june|july|august|september|october|november|december)`,
+}
+
+var monthNames = []string{"jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"}
+var monthFull = []string{"january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"}
+
+func strptimeRe(format string) *regexp.Regexp {
+	if re, ok := strptimeCache[format]; ok {
+		return re
+	}
+	var b strings.Builder
+	b.WriteString("(?i)^")
+	for i := 0; i < len(format); i++ {
+		c := format[i]
+		switch {
+		case c == '%' && i+1 < len(format):
+			i++
+			b.WriteString(strptimeDirective[format[i]])
+		case c == ' ':
+			b.WriteString(`\s+`)
+		default:
+			b.WriteString(regexp.QuoteMeta(string(c)))
+		}
+	}
+	b.WriteString("$")
+	re := regexp.MustCompile(b.String())
+	strptimeCache[format] = re
+	return re
+}
+
+// strptimeFields returns the numeric fields a format matched.
+func strptimeFields(format, s string) (map[string]int, bool) {
+	re := strptimeRe(format)
+	m := re.FindStringSubmatch(s)
+	if m == nil {
+		return nil, false
+	}
+	out := map[string]int{}
+	for i, name := range re.SubexpNames() {
+		if name == "" {
+			continue
+		}
+		v := m[i]
+		if name == "f" {
+			for len(v) < 6 {
+				v += "0"
+			}
+		}
+		if name == "b" || name == "B" {
+			names := monthNames
+			if name == "B" {
+				names = monthFull
+			}
+			for i, mn := range names {
+				if strings.EqualFold(mn, v) {
+					out["m"] = i + 1
+				}
+			}
+			continue
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		if err != nil {
+			return nil, false
+		}
+		out[name] = n
+	}
+	return out, true
+}
+
+var dateFormats = []string{"%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%b %d %Y", "%b %d, %Y", "%d %b %Y", "%d %b, %Y", "%B %d %Y", "%B %d, %Y", "%d %B %Y", "%d %B, %Y"}
+
+func daysIn(year, month int) int {
+	return time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, time.UTC).Day()
+}
 
 func parseDateInput(s string) (time.Time, bool) {
 	s = pyStrip(s)
-	for _, layout := range dateFormats {
-		if t, err := time.Parse(layout, s); err == nil {
-			return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC), true
+	for _, f := range dateFormats {
+		fl, ok := strptimeFields(f, s)
+		if !ok {
+			continue
 		}
+		year := fl["Y"]
+		if _, ok := fl["y"]; ok {
+			year = fl["y"]
+			if year < 69 {
+				year += 2000
+			} else {
+				year += 1900
+			}
+		}
+		if year < 1 || fl["d"] > daysIn(year, fl["m"]) {
+			continue
+		}
+		return time.Date(year, time.Month(fl["m"]), fl["d"], 0, 0, 0, 0, time.UTC), true
 	}
 	return time.Time{}, false
 }
 
-var timeFormats = []string{"15:04:05", "15:04:05.999999", "15:04"}
+var timeFormats = []string{"%H:%M:%S", "%H:%M:%S.%f", "%H:%M"}
 
 func parseTimeInput(s string) (time.Duration, bool) {
 	s = pyStrip(s)
-	for _, layout := range timeFormats {
-		if t, err := time.Parse(layout, s); err == nil {
-			return time.Duration(t.Hour())*time.Hour + time.Duration(t.Minute())*time.Minute +
-				time.Duration(t.Second())*time.Second + time.Duration(t.Nanosecond()), true
+	for _, f := range timeFormats {
+		fl, ok := strptimeFields(f, s)
+		if !ok {
+			continue
 		}
+		if fl["S"] > 59 { // 60 and 61 are leap seconds strptime accepts but time() rejects
+			continue
+		}
+		return time.Duration(fl["H"])*time.Hour + time.Duration(fl["M"])*time.Minute +
+			time.Duration(fl["S"])*time.Second + time.Duration(fl["f"])*time.Microsecond, true
 	}
 	return 0, false
 }
@@ -347,4 +449,27 @@ func validIP(s string) bool {
 		return true
 	}
 	return strings.Contains(s, ":") && !strings.ContainsAny(s, " ")
+}
+
+// asciiDigits turns other scripts' decimal digits into 0-9, as Python's number parsing does.
+func asciiDigits(s string) string {
+	needs := false
+	for _, r := range s {
+		if r > 127 && unicode.IsDigit(r) {
+			needs = true
+			break
+		}
+	}
+	if !needs {
+		return s
+	}
+	var b strings.Builder
+	for _, r := range s {
+		if r > 127 && unicode.IsDigit(r) {
+			b.WriteRune('0' + digitValue(r))
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }

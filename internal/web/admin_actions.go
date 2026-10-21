@@ -16,6 +16,9 @@ type adminAction struct {
 // adminActions are the actions the user may run on the model's objects.
 func (a *App) adminActions(r *adminReq, m *modelSpec) []adminAction {
 	var out []adminAction
+	if r.popup() {
+		return nil // no bulk actions in a popup
+	}
 	for _, name := range m.Actions {
 		if name == "delete_selected" && r.perms.has(m, "delete") {
 			out = append(out, adminAction{name: name, description: "Delete selected " + m.VerboseNamePlural})

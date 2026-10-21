@@ -23,12 +23,14 @@ func widgetAttrs(m map[string]any) []attr {
 	}
 	rank := func(k string) int {
 		switch k {
-		case "class":
+		case "cols", "rows":
 			return 0
-		case "maxlength", "min", "max", "step", "size", "cols", "rows":
+		case "class":
 			return 1
+		case "maxlength", "min", "max", "step", "size":
+			return 2
 		}
-		return 2
+		return 3
 	}
 	sort.Slice(keys, func(i, j int) bool {
 		if rank(keys[i]) != rank(keys[j]) {

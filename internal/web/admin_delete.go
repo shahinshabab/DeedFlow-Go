@@ -352,7 +352,7 @@ func (a *App) deleteSelected(r *adminReq, cl *changeList, selected []string, acr
 	ctxMap["protected"] = stringsToAny(d.protected)
 	ctxMap["opts"] = a.adminOpts(m)
 	ctxMap["action_checkbox_name"] = "_selected_action"
-	ctxMap["media"] = adminMedia(false)["js"]
+	ctxMap["media"] = safe(a.modelAdminMedia().html())
 	c.renderContext(http.StatusOK, "admin/delete_selected_confirmation.html", ctxMap)
 	return true, nil
 }

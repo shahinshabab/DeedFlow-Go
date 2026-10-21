@@ -406,6 +406,15 @@ func (f *aForm) cleanField(fl *aField) (any, []string) {
 			raw = *rv.s
 		}
 		min, max := intPtr(sp.MinValue), intPtr(sp.MaxValue)
+		if min == nil || max == nil {
+			mmin, mmax := validatorLimits(fl.mf)
+			if min == nil {
+				min = mmin
+			}
+			if max == nil {
+				max = mmax
+			}
+		}
 		v, msg := cleanInteger(raw, min, max)
 		if msg != "" {
 			return nil, []string{msg}

@@ -162,16 +162,18 @@ type changeList struct {
 	links      []string
 	hasActions bool
 
-	query     string
-	pageNum   int
-	showAll   bool
-	addFacets bool
-	get       *pairs
-	params    *pairs // dict(request.GET.items()) without p and e
-	fparams   map[string][]string
-	remaining map[string][]string
-	filters   []*listFilter
-	hasActive bool
+	query      string
+	pageNum    int
+	showAll    bool
+	isPopup    bool
+	toFieldVal string
+	addFacets  bool
+	get        *pairs
+	params     *pairs // dict(request.GET.items()) without p and e
+	fparams    map[string][]string
+	remaining  map[string][]string
+	filters    []*listFilter
+	hasActive  bool
 
 	clearAllQS string
 	preserved  string
@@ -200,6 +202,8 @@ func (a *App) newChangeList(r *adminReq, m *modelSpec, hasActions bool) (*change
 		}
 	}
 	_, cl.showAll = cl.get.vals[allVar]
+	_, cl.isPopup = cl.get.vals[popupVar]
+	cl.toFieldVal, _ = cl.get.last(toFieldVr)
 	_, cl.addFacets = cl.get.vals[facetsVar]
 
 	cl.params = &pairs{vals: map[string][]string{}}
@@ -954,7 +958,11 @@ func (a *App) adminForbidden(c *Ctx) {
 
 func (a *App) renderChangelist(r *adminReq, cl *changeList, actions []adminAction) {
 	m := cl.m
-	ctx := r.base(fmt.Sprintf("Select %s to %s", m.VerboseName, map[bool]string{true: "change", false: "view"}[r.perms.has(m, "change")]))
+	title := fmt.Sprintf("Select %s to %s", m.VerboseName, map[bool]string{true: "change", false: "view"}[r.perms.has(m, "change")])
+	if cl.isPopup {
+		title = fmt.Sprintf("Select %s", m.VerboseName)
+	}
+	ctx := r.base(title)
 	opts := a.adminOpts(m)
 	clMap, err := cl.templateMap(opts)
 	if err != nil {
@@ -976,8 +984,8 @@ func (a *App) renderChangelist(r *adminReq, cl *changeList, actions []adminActio
 	ctx["actions_on_bottom"] = false
 	ctx["actions_selection_counter"] = true
 	ctx["preserved_filters"] = cl.preserved
-	ctx["media"] = adminMedia(false)
-	ctx["is_popup"] = false
+	ctx["media"] = adminMediaCtx(a.modelAdminMedia())
+	ctx["is_popup"] = cl.isPopup
 	ctx["to_field"] = nil
 	ctx["search_var"] = searchVar
 	ctx["is_popup_var"] = popupVar
@@ -989,7 +997,7 @@ func (a *App) renderChangelist(r *adminReq, cl *changeList, actions []adminActio
 		ctx["action_form"] = nil
 	}
 	if r.perms.has(m, "add") {
-		ctx["add_url"] = addPreservedFilters(a.adminURL(m, "add"), m, cl.preserved, a)
+		ctx["add_url"] = addPreservedFiltersP(a.adminURL(m, "add"), m, cl.preserved, a, cl.isPopup, cl.toFieldVal)
 	}
 	// result_list
 	headers, numSorted := cl.resultHeaders()
@@ -1079,7 +1087,7 @@ func (cl *changeList) templateMap(opts map[string]any) (map[string]any, error) {
 		"clear_all_filters_qs": cl.clearAllQS,
 		"filter_specs":         specs, "query": cl.query, "search_fields": searchFields, "search_help_text": nil,
 		"result_count": cl.resultCount, "full_result_count": cl.fullResultCount, "show_full_result_count": true,
-		"show_admin_actions": cl.fullResultCount > 0, "is_popup": false, "result_list": resultList,
+		"show_admin_actions": cl.fullResultCount > 0, "is_popup": cl.isPopup, "result_list": resultList,
 		"params": map[string]any{"items": items}, "formset": nil, "date_hierarchy": nil,
 	}, nil
 }
@@ -1295,7 +1303,11 @@ func (cl *changeList) resultRows() ([]any, error) {
 				}
 				first = false
 				href := addPreservedFilters(cl.a.adminURL(cl.m, "change", adminQuote(o.pkString())), cl.m, cl.preserved, cl.a)
-				cells = append(cells, safe(fmt.Sprintf(`<%s%s><a href="%s">%s</a></%s>`, tag, cls, esc(href), repr, tag)))
+				opener := ""
+				if cl.isPopup {
+					opener = fmt.Sprintf(` data-popup-opener="%s"`, esc(o.pkString()))
+				}
+				cells = append(cells, safe(fmt.Sprintf(`<%s%s><a href="%s"%s>%s</a></%s>`, tag, cls, esc(href), opener, repr, tag)))
 			} else {
 				cells = append(cells, safe(fmt.Sprintf(`<td%s>%s</td>`, cls, repr)))
 			}
@@ -1330,18 +1342,22 @@ func (cl *changeList) computedValue(o *adminObj, name string, re *reprEnv) (any,
 	return nil, false, fmt.Errorf("admin: unknown list_display entry %s.%s", cl.m.Label, name)
 }
 
-// adminMedia is ModelAdmin.media as the templates print it.
-func adminMedia(form bool) map[string]any {
-	js := []string{"vendor/jquery/jquery.js", "jquery.init.js", "core.js", "admin/RelatedObjectLookups.js", "actions.js", "urlify.js", "prepopulate.js", "vendor/xregexp/xregexp.js"}
-	var b strings.Builder
-	for _, j := range js {
-		b.WriteString(`<script src="` + staticURL + `admin/js/` + j + `"></script>` + "\n")
-	}
-	return map[string]any{"js": safe(strings.TrimSuffix(b.String(), "\n")), "css": safe("")}
+// adminMediaCtx is a media object as the templates read it ({{ media.js }}, {{ media.css }}).
+func adminMediaCtx(m *adminMediaSet) map[string]any {
+	js := newMedia()
+	js.js = m.js
+	css := newMedia()
+	css.css, css.mediums = m.css, m.mediums
+	return map[string]any{"js": safe(js.html()), "css": safe(css.html())}
 }
 
 // addPreservedFilters is the add_preserved_filters template tag.
 func addPreservedFilters(u string, m *modelSpec, preserved string, a *App) string {
+	return addPreservedFiltersP(u, m, preserved, a, false, "")
+}
+
+// addPreservedFiltersP also carries the popup and to_field flags along.
+func addPreservedFiltersP(u string, m *modelSpec, preserved string, a *App, popup bool, toField string) string {
 	pu, err := url.Parse(u)
 	if err != nil {
 		return u
@@ -1379,6 +1395,12 @@ func addPreservedFilters(u string, m *modelSpec, preserved string, a *App) strin
 		for _, k := range keys {
 			set(k, kv[k])
 		}
+	}
+	if popup {
+		set(popupVar, "1")
+	}
+	if toField != "" {
+		set(toFieldVr, toField)
 	}
 	own := parseQueryOrdered(pu.RawQuery)
 	for _, k := range own.keys {

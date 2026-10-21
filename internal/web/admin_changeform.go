@@ -1,8 +1,6 @@
 package web
 
 import (
-	_ "embed"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -15,15 +13,6 @@ import (
 
 // The add and change pages of a model: one form, the inline formsets below
 // it, saving, the log entry and the redirect (ModelAdmin.changeform_view).
-
-//go:embed admin_media.json
-var adminMediaJSON []byte
-
-var adminMediaTable = func() map[string]string {
-	m := map[string]string{}
-	_ = json.Unmarshal(adminMediaJSON, &m)
-	return m
-}()
 
 // cfView is one add/change request.
 type cfView struct {

@@ -92,7 +92,7 @@ class Run:
         self.record(name or "GET " + path, s, h, b, body)
         return s, h, b
 
-    def post(self, path, data, name=None, files=(), body=True, follow=True):
+    def post(self, path, data, name=None, files=(), body=True, follow=True, brief=None):
         if files or any(k == "__multipart__" for k in data):
             fields = [(k, v) for k, vs in data.items() for v in (vs if isinstance(vs, list) else [vs])]
             fields.append(("csrfmiddlewaretoken", self.site.csrf()))
@@ -100,6 +100,9 @@ class Run:
             s, h, b = self.site.req("POST", path, raw_body=raw, content_type=ct)
         else:
             s, h, b = self.site.req("POST", path, data)
+        if brief and s == 200:
+            self.brief(name or "POST " + path, s, b, brief)
+            return s, h, b
         self.record(name or "POST " + path, s, h, b, body)
         if follow and s == 302 and h.get("Location"):
             loc = h.get("Location")
@@ -108,6 +111,11 @@ class Run:
             s2, h2, b2 = self.site.req("GET", loc)
             self.record("  -> GET " + loc, s2, h2, b2, False, messages=True)
         return s, h, b
+
+    def brief(self, name, s, b, field):
+        errs = [re.sub(r"\s+", " ", re.sub("<[^>]+>", " ", m)).strip() for m in re.findall(r'<ul class="errorlist[^"]*">(.*?)</ul>', b, re.S)]
+        widget = re.findall(r'<(?:input|select|textarea)[^>]*\bname="%s(?:_\d)?"[^>]*>' % re.escape(field), b)
+        self.log.append({"name": name, "status": s, "errors": errs, "widget": sorted(widget)})
 
     def record(self, name, s, h, b, body, messages=False):
         entry = {"name": self.mask(name), "status": s, "location": self.mask(h.get("Location"))}
@@ -163,7 +171,10 @@ class Run:
 
     def cleanup(self):
         for q, a in reversed(self.created):
-            sql(q, a, fetch=False)
+            try:
+                sql(q, a, fetch=False)
+            except Exception as e:  # noqa: BLE001
+                print("cleanup failed:", q[:60], e.__class__.__name__)
 
 
 SCENARIOS = []
@@ -261,7 +272,7 @@ def group_flow(r):
     perms = [x["id"] for x in sql("SELECT id FROM auth_permission WHERE codename IN ('add_deed','view_deed') ORDER BY id")]
     r.post("/admin/auth/group/add/", {"name": "TwinGroup", "permissions": [str(p) for p in perms], "_continue": "1"}, "ok")
     gids = find_and_clean(r, "auth_group", "name=%s", ("TwinGroup",), "grp", "auth.group")
-    r.created.insert(0, ("DELETE FROM auth_group_permissions WHERE group_id=%s", (gids[0] if gids else 0,)))
+    r.created.append(("DELETE FROM auth_group_permissions WHERE group_id=%s", (gids[0] if gids else 0,)))
     r.post("/admin/auth/group/add/", {"name": "TwinGroup"}, "duplicate")
     gid = r.ids.get("grp", 0)
     r.post(f"/admin/auth/group/{gid}/change/", {"name": "TwinGroup2", "permissions": [str(perms[0])]}, "change")
@@ -299,8 +310,8 @@ def user_change_flow(r):
     uid = user_fixture(r, "twin_chg", email="a@example.com", password="pbkdf2_sha256$870000$saltsaltsalt$aGFzaGhhc2hoYXNoaGFzaGhhc2g=")
     gid = r.fixture("tg", "INSERT INTO auth_group (name) VALUES ('TwinGrpU')")
     r.created.append(("DELETE FROM auth_group WHERE id=%s", (gid,)))
-    r.created.insert(0, ("DELETE FROM auth_user_groups WHERE user_id=%s", (uid,)))
-    r.created.insert(0, ("DELETE FROM auth_user_user_permissions WHERE user_id=%s", (uid,)))
+    r.created.append(("DELETE FROM auth_user_groups WHERE user_id=%s", (uid,)))
+    r.created.append(("DELETE FROM auth_user_user_permissions WHERE user_id=%s", (uid,)))
     log_cleanup(r, "auth.user", uid)
     path = f"/admin/auth/user/{uid}/change/"
     base = {"username": "twin_chg", "first_name": "Tw", "last_name": "In", "email": "a@example.com", "is_active": "on",
@@ -409,8 +420,8 @@ def deed_flow(r):
     r.post(path, dict(deed_base(uid), **mg, ai_raw_response='{"a": [1, 2]}', survey_mapping='[1,2,3]', title="Twin deed"), "ok", )
     ids = find_and_clean(r, "deeds_deed", "title=%s", ("Twin deed",), "deed", "deeds.deed")
     did = r.ids.get("deed", 0)
-    r.created.insert(0, ("DELETE FROM deeds_executant WHERE deed_id=%s", (did,)))
-    r.created.insert(0, ("DELETE FROM deeds_registrationdetail WHERE deed_id=%s", (did,)))
+    r.created.append(("DELETE FROM deeds_executant WHERE deed_id=%s", (did,)))
+    r.created.append(("DELETE FROM deeds_registrationdetail WHERE deed_id=%s", (did,)))
     r.snap("deed", "SELECT id, owner_id, organization_id, title, status, progress, token_number, is_test, ai_raw_response, portal_snapshot, survey_mapping, extracted_text, result_message FROM deeds_deed WHERE id=%s", (did,))
     path = f"/admin/deeds/deed/{did}/change/"
     mg = deed_mgmt(**{"registration-TOTAL_FORMS": "1", "executants-TOTAL_FORMS": "1"})
@@ -476,7 +487,7 @@ def token_flow(r):
     r.post(cpath, dict(data, **{"receipts-0-kind": "zzz"}), "bad kind")
     r.post(cpath, dict(data, **{"receipts-0-amount": "x"}), "bad amount")
     r.snap("receipts", "SELECT id, token_id, kind, transaction_no, amount, grn, paid_at, status, fields FROM ledger_paymentreceipt WHERE token_id=%s ORDER BY id", (tid,))
-    r.created.insert(0, ("DELETE FROM ledger_paymentreceipt WHERE token_id=%s", (tid,)))
+    r.created.append(("DELETE FROM ledger_paymentreceipt WHERE token_id=%s", (tid,)))
     r.get(cpath, "after", body=True)
 
 
@@ -503,7 +514,7 @@ def run_expense_flow(r):
            files=[("bills-0-file", "my bill.pdf", b"%PDF-1.4 twin", "application/pdf")])
     find_and_clean(r, "ledger_expense", "description=%s", ("Twin expense",), "exp", "ledger.expense")
     eid = r.ids.get("exp", 0)
-    r.created.insert(0, ("DELETE FROM ledger_expensebill WHERE expense_id=%s", (eid,)))
+    r.created.append(("DELETE FROM ledger_expensebill WHERE expense_id=%s", (eid,)))
     for b in sql("SELECT id FROM ledger_expensebill WHERE expense_id=%s ORDER BY id", (eid,)):
         r.ids["bill%d" % len([k for k in r.ids if k.startswith("bill")])] = b["id"]
     r.snap("expense", "SELECT id, organization_id, date, category, amount, payment_mode, description, created_by_id FROM ledger_expense WHERE id=%s", (eid,))
@@ -530,6 +541,155 @@ def action_flow(r):
     r.snap("left2", "SELECT id, name FROM accounts_organization WHERE name LIKE 'TwinOrg Act%%' ORDER BY id")
     r.snap("log", "SELECT object_repr, action_flag, change_message FROM django_admin_log WHERE object_repr LIKE 'TwinOrg Act%%' ORDER BY object_repr")
     r.created.append(("DELETE FROM django_admin_log WHERE object_repr LIKE 'TwinOrg Act%%'", ()))
+
+
+
+def pbkdf2(password, iterations=870000):
+    import base64
+    import hashlib
+    salt = "twinsalt12345"
+    h = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), iterations)
+    return "pbkdf2_sha256$%d$%s$%s" % (iterations, salt, base64.b64encode(h).decode())
+
+
+@scenario
+def perms_flow(r):
+    pw = "pw-Twin-staff-1"
+    uid = user_fixture(r, "twin_staff", password=pbkdf2(pw), is_staff=True)
+    r.created.append(("DELETE FROM auth_user_user_permissions WHERE user_id=%s", (uid,)))
+    for code in ("view_deed", "change_organization", "add_organization", "view_organization", "delete_expense", "view_expense", "view_user", "change_user"):
+        sql("INSERT INTO auth_user_user_permissions (user_id, permission_id) SELECT %s, id FROM auth_permission WHERE codename=%s", (uid, code), fetch=False)
+    oid = org_fixture(r, "porg", "TwinOrg Perm")
+    staff = Site(r.site.base, "twin_staff", pw)
+    staff.login()
+    r.site = staff
+    for path in ["/admin/", "/admin/accounts/", "/admin/deeds/", "/admin/deeds/deed/", "/admin/deeds/deed/add/", "/admin/deeds/deed/1006/change/",
+                 "/admin/deeds/deed/1006/history/", "/admin/deeds/deed/1006/delete/", "/admin/accounts/organization/", "/admin/accounts/organization/add/",
+                 f"/admin/accounts/organization/{oid}/change/", f"/admin/accounts/organization/{oid}/delete/", "/admin/ledger/expense/",
+                 "/admin/ledger/expense/1/delete/", "/admin/ledger/expense/1/change/", "/admin/auth/user/", "/admin/auth/user/add/", "/admin/auth/group/",
+                 "/admin/auth/user/1/password/", "/admin/accounts/portalcredential/", "/admin/nope/", "/admin/accounts/nope/",
+                 "/admin/accounts/organization/99999999/change/", "/admin/accounts/organization/?e=1", "/admin/accounts/organization/?name__icontains=x"]:
+        r.get(path, body=True)
+    base = dict({"name": "TwinOrg Perm Changed"}, **inline_mgmt("memberships"))
+    r.post(f"/admin/accounts/organization/{oid}/change/", base, "change as staff")
+    r.post("/admin/accounts/organization/add/", dict(base, name="TwinOrg Perm Added"), "add as staff")
+    find_and_clean(r, "accounts_organization", "name=%s", ("TwinOrg Perm Added",), "padd", "accounts.organization")
+    r.post("/admin/deeds/deed/1006/change/", {"title": "x"}, "change deed denied")
+    r.post("/admin/ledger/expense/", {"action": "delete_selected", "index": "0", "select_across": "0", "_selected_action": ["999999"]}, "action on nothing")
+    r.snap("orgs", "SELECT id, name FROM accounts_organization WHERE name LIKE 'TwinOrg Perm%%' ORDER BY id")
+    r.created.append(("DELETE FROM django_admin_log WHERE user_id=%s", (uid,)))
+    r.site = Site(r.site.base, "admin", "correct-horse-7")
+    r.site.login()
+
+
+@scenario
+def popup_and_misc_flow(r):
+    oid = org_fixture(r, "morg", "TwinOrg Misc")
+    for path in ["/admin/accounts/organization/?_popup=1", "/admin/accounts/organization/?_popup=1&_to_field=id&q=TwinOrg",
+                 "/admin/accounts/organization/add/?_popup=1&_to_field=id", f"/admin/accounts/organization/{oid}/change/?_popup=1&_to_field=id",
+                 f"/admin/accounts/organization/{oid}/delete/?_popup=1&_to_field=id",
+                 f"/admin/accounts/organization/{oid}/change/?_changelist_filters=q%3DTwin%26o%3D1", f"/admin/accounts/organization/{oid}/history/?_changelist_filters=q%3DTwin",
+                 "/admin/accounts/organization/add/?name=Prefilled", f"/admin/accounts/organization/{oid}/", f"/admin/accounts/organization/{oid}",
+                 "/admin/accounts/organization/abc/change/", "/admin/auth/user/add/?_popup=1", f"/admin/r/1/{oid}/", "/admin/r/9999/1/",
+                 "/admin/jsi18n/", "/admin/password_change/", "/admin/password_change/done/"]:
+        r.get(path, body=True)
+    base = dict({"name": "TwinOrg Misc Pop", "_popup": "1", "_to_field": "id"}, **inline_mgmt("memberships"))
+    r.post("/admin/accounts/organization/add/?_popup=1&_to_field=id", base, "popup add")
+    find_and_clean(r, "accounts_organization", "name=%s", ("TwinOrg Misc Pop",), "mpop", "accounts.organization")
+    r.post(f"/admin/accounts/organization/{oid}/change/?_popup=1&_to_field=id", dict(base, name="TwinOrg Misc Pop2"), "popup change")
+    r.post(f"/admin/accounts/organization/{oid}/delete/?_popup=1", {"post": "yes", "_popup": "1"}, "popup delete")
+    r.post("/admin/accounts/organization/add/?_changelist_filters=q%3DTwin", dict(base, name="TwinOrg Misc F1", _popup="", _to_field=""), "preserved filters add")
+    find_and_clean(r, "accounts_organization", "name=%s", ("TwinOrg Misc F1",), "mf1", "accounts.organization")
+    r.created.append(("DELETE FROM django_admin_log WHERE object_repr LIKE 'TwinOrg Misc%%'", ()))
+
+
+
+FUZZ_INTS = ["", "5", " 7 ", "+3", "-1", "0", "1_0", "5.0", "5.5", "1e3", "abc", "٣", "99999999999999999999", "32767", "32768", "0x10"]
+FUZZ_DECIMALS = ["", "1", "1.5", " 2.50 ", "-1", "+3.25", "1e2", "1E+2", "0.00001", "123456789012", "12345678901.12", "1.234", ".5", "5.", "abc", "1_000", "inf", "nan", "1,5", "٣.٥"]
+FUZZ_DATES = ["", "2026-01-02", "2026-1-2", "01/02/2026", "01/02/26", "2026-02-30", "2026/01/02", "02-01-2026", "Jan 2 2026", " 2026-01-02 ", "0001-01-01", "99999-01-01", "abc"]
+FUZZ_TIMES = ["", "10:20", "10:20:30", "10:20:30.123", "25:00", "10", "10:20 PM", "1:2:3", "abc"]
+FUZZ_TEXT = ["", " ", "  padded  ", "x" * 255, "x" * 256, "tab\there", "línea\nbreak", "ünï©ode", "<b>&amp;</b>", "'quote\"", "nul\x00", "\u0d2a\u0d3e\u0d32"]
+FUZZ_EMAIL = ["", "a@b.co", "a@b", "a@localhost", "a b@c.com", "@x.com", "x@y..com", "x@[1.2.3.4]", "x@bücher.de", "very.long." + "a" * 60 + "@example.com", "ok+tag@example.org", "a@b.c-"]
+
+
+def fuzz(r, path, base, field, values, brief=True, keep=None):
+    for i, v in enumerate(values):
+        data = dict(base)
+        data[field] = v
+        r.post(path, data, f"{field}={v!r}", brief=field if brief else None, follow=False)
+        if keep:
+            keep(r)
+
+
+@scenario
+def fuzz_flow(r):
+    oid = org_fixture(r, "forg", "TwinOrg Fuzz")
+    uid = user_fixture(r, "twin_fz")
+    tpath = "/admin/ledger/registeredtoken/add/"
+    mg = inline_mgmt("receipts")
+    tbase = dict({"organization": str(oid), "token": "TFZ", "presenter_name_ml": "", "presentation_date": "2026-01-02", "presenter_place_ml": "",
+                  "presenter_address_ml": "", "presenter_city_ml": "", "presented_at_0": "", "presented_at_1": "", "document_amount": "",
+                  "applicant_name": "", "sro": "", "status": "pending", "attempts": "0", "last_error": "", "collected_at_0": "", "collected_at_1": ""}, **mg)
+    n = [0]
+
+    def post_unique(field, values):
+        for v in values:
+            n[0] += 1
+            data = dict(tbase, token="TFZ%d" % n[0])
+            data[field] = v
+            r.post(tpath, data, f"{field}={v!r}", brief=field, follow=False)
+
+    post_unique("attempts", FUZZ_INTS)
+    post_unique("document_amount", FUZZ_DECIMALS)
+    post_unique("presentation_date", FUZZ_DATES)
+    post_unique("presented_at_0", FUZZ_DATES)
+    for t in FUZZ_TIMES:
+        n[0] += 1
+        r.post(tpath, dict(tbase, token="TFZ%d" % n[0], presented_at_0="2026-01-02", presented_at_1=t), f"time={t!r}", brief="presented_at", follow=False)
+    post_unique("applicant_name", FUZZ_TEXT)
+    post_unique("last_error", FUZZ_TEXT)
+    post_unique("status", ["pending", "collected", "failed", "zzz", "", "PENDING"])
+    # rows the valid ones created
+    r.snap("tokens", "SELECT token, presentation_date, presented_at, document_amount, applicant_name, last_error, status, attempts FROM ledger_registeredtoken WHERE token LIKE 'TFZ%%' ORDER BY token")
+    find_and_clean(r, "ledger_registeredtoken", "token LIKE 'TFZ%%'", (), "tfz", None)
+    r.created.append(("DELETE FROM ledger_registeredtoken WHERE token LIKE 'TFZ%%'", ()))
+    upath = "/admin/auth/user/%d/change/" % uid
+    ubase = {"username": "twin_fz", "first_name": "", "last_name": "", "email": "", "is_active": "on", "date_joined_0": "2020-01-01", "date_joined_1": "00:00:00",
+             "initial-date_joined_0": "2020-01-01", "initial-date_joined_1": "00:00:00", "last_login_0": "", "last_login_1": ""}
+    fuzz(r, upath, ubase, "email", FUZZ_EMAIL)
+    fuzz(r, upath, ubase, "first_name", FUZZ_TEXT)
+    for t in FUZZ_TIMES:
+        r.post(upath, dict(ubase, last_login_0="2026-01-02", last_login_1=t), f"last_login time={t!r}", brief="last_login", follow=False)
+    for d in FUZZ_DATES:
+        r.post(upath, dict(ubase, last_login_0=d, last_login_1="10:00:00"), f"last_login date={d!r}", brief="last_login", follow=False)
+    r.snap("user", "SELECT username, first_name, email, last_login FROM auth_user WHERE id=%s", (uid,))
+    cpath = "/admin/accounts/portalcredential/add/"
+    cbase = {"organization": str(oid), "portal_username": "u", "new_deed_menu_index": "1", "my_deeds_menu_index": "2", "new_password": ""}
+    fuzz(r, cpath, cbase, "my_deeds_menu_index", FUZZ_INTS)
+    r.created.append(("DELETE FROM accounts_portalcredential WHERE organization_id=%s", (oid,)))
+    r.created.append(("DELETE FROM django_admin_log WHERE object_repr LIKE 'Portal credential for TwinOrg Fuzz%%' OR object_repr LIKE 'TFZ%%'", ()))
+    r.created.append(("DELETE FROM django_admin_log WHERE object_repr='twin_fz'", ()))
+
+
+@scenario
+def own_password_flow(r):
+    pw = "pw-Twin-staff-2"
+    uid = user_fixture(r, "twin_staff2", password=pbkdf2(pw), is_staff=True, email="s@example.com")
+    staff = Site(r.site.base, "twin_staff2", pw)
+    staff.login()
+    r.site = staff
+    path = "/admin/password_change/"
+    new = "N3w-Twin-pass-99"
+    r.get(path, body=True)
+    r.post(path, {"old_password": "", "new_password1": "", "new_password2": ""}, "empty")
+    r.post(path, {"old_password": "wrong", "new_password1": new, "new_password2": new}, "wrong old")
+    r.post(path, {"old_password": pw, "new_password1": new, "new_password2": "other"}, "mismatch")
+    r.post(path, {"old_password": pw, "new_password1": "short", "new_password2": "short"}, "weak")
+    r.post(path, {"old_password": pw, "new_password1": "twin_staff2", "new_password2": "twin_staff2"}, "similar")
+    r.post(path, {"old_password": pw, "new_password1": new, "new_password2": new}, "ok")
+    r.get("/admin/password_change/done/", "done", body=True)
+    r.get("/admin/", "index still logged in", body=False)
+    r.snap("hash", "SELECT (password LIKE 'pbkdf2_sha256$%%') AS hashed FROM auth_user WHERE id=%s", (uid,))
 
 
 def run_all(prefixes):

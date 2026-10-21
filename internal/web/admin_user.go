@@ -276,3 +276,84 @@ func (a *App) adminUserPassword(r *adminReq, m *modelSpec) {
 }
 
 var _ = strings.Join
+
+// passwordSpec is a password field of the admin's own forms.
+func passwordSpec(name, label, help string, attrs map[string]any) *formFieldSpec {
+	l := label
+	f := strPtr(false)
+	return &formFieldSpec{Name: name, FieldClass: "CharField", Label: &l, Required: true, HelpText: help, Strip: f,
+		Widget: widgetSpec{Class: "PasswordInput", Attrs: attrs, InputType: "password"}}
+}
+
+func strPtr(b bool) *bool { return &b }
+
+const passwordHelp = "<ul><li>Your password can’t be too similar to your other personal information.</li><li>Your password must contain at least 8 characters.</li><li>Your password can’t be a commonly used password.</li><li>Your password can’t be entirely numeric.</li></ul>"
+
+// adminPasswordChange is the admin's "Change password" page (PasswordChangeView).
+func (a *App) adminPasswordChange(r *adminReq) {
+	c := r.c
+	user := c.User
+	specs := map[string]*formFieldSpec{
+		"old_password":  passwordSpec("old_password", "Old password", "", map[string]any{"autocomplete": "current-password", "autofocus": true}),
+		"new_password1": passwordSpec("new_password1", "New password", passwordHelp, map[string]any{"autocomplete": "new-password"}),
+		"new_password2": passwordSpec("new_password2", "New password confirmation", "Enter the same password as before, for verification.", map[string]any{"autocomplete": "new-password"}),
+	}
+	form := a.newForm(r, &modelSpec{Label: "auth.user", byName: map[string]*modelFieldSpec{}}, specs, []string{"old_password", "new_password1", "new_password2"}, "")
+	form.modelOnly = true
+	form.cleanFld = map[string]func(f *aForm, v any) (any, string){
+		"old_password": func(f *aForm, v any) (any, string) {
+			s, _ := v.(string)
+			if !auth.CheckPassword(s, user.Password) {
+				return nil, "Your old password was entered incorrectly. Please enter it again."
+			}
+			return v, ""
+		},
+	}
+	form.formClean = func(f *aForm) {
+		p1, _ := f.cleaned["new_password1"].(string)
+		p2, _ := f.cleaned["new_password2"].(string)
+		if p1 != "" && p2 != "" && p1 != p2 {
+			f.addError("new_password2", "The two password fields didn’t match.")
+		}
+		validatePasswordForUser(f, "new_password2", &auth.UserAttrs{Username: user.Username, FirstName: user.FirstName, LastName: user.LastName, Email: user.Email})
+	}
+	if c.R.Method == http.MethodPost {
+		form.bind(c.PostForm(), nil)
+		if form.isValid() {
+			pw, _ := form.cleaned["new_password1"].(string)
+			hash := auth.MakePassword(pw)
+			if _, err := r.q().Exec(c.Context(), `UPDATE auth_user SET password = $1 WHERE id = $2`, hash, user.ID); err != nil {
+				c.ServerError(err)
+				return
+			}
+			if u, err := a.Store.UserByID(c.Context(), user.ID); err == nil {
+				c.UpdateSessionAuthHash(u)
+			}
+			done, _ := a.Router.Reverse("admin:password_change_done")
+			c.SaveSession()
+			c.Redirect(done)
+			return
+		}
+	}
+	ctx := r.base("Password change")
+	fm := map[string]any{}
+	for _, n := range form.order {
+		fm[n] = form.boundMap(form.fields[n])
+	}
+	if form.bound && len(form.errOrder) > 0 {
+		var items []any
+		for _, n := range form.errOrder {
+			items = append(items, []any{n, form.errs[n]})
+		}
+		fm["errors"] = map[string]any{"items": items}
+	} else {
+		fm["errors"] = nil
+	}
+	ctx["form"] = fm
+	c.renderContext(http.StatusOK, "registration/password_change_form.html", ctx)
+}
+
+// adminPasswordChangeDone is PasswordChangeDoneView.
+func (a *App) adminPasswordChangeDone(r *adminReq) {
+	r.render("registration/password_change_done.html", r.base("Password change successful"))
+}
