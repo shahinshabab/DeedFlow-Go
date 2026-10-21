@@ -103,6 +103,12 @@ func (s *Store) SaveDeed(ctx context.Context, d *models.Deed, cols ...string) er
 	return db.Update(ctx, s.q(), "deeds_deed", d, cols...)
 }
 
+// SaveDeedQuiet writes the named columns without touching updated_at (the
+// stale-run reapers go by updated_at, which only progress updates move).
+func (s *Store) SaveDeedQuiet(ctx context.Context, d *models.Deed, cols ...string) error {
+	return db.Update(ctx, s.q(), "deeds_deed", d, cols...)
+}
+
 // TouchDeed bumps updated_at alone (the run's heartbeat).
 func (s *Store) TouchDeed(ctx context.Context, id int64) error {
 	_, err := s.q().Exec(ctx, `UPDATE deeds_deed SET updated_at = now() WHERE id = $1`, id)
