@@ -1,13 +1,16 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/shahinshabab/deedflow-go/internal/auth"
+	"github.com/shahinshabab/deedflow-go/internal/filereader"
 )
 
 // The HTML of the admin's widgets, as Django's widget templates print them.
@@ -70,6 +73,10 @@ func (f *aForm) fieldValue(fl *aField) fieldValue {
 					v.parts[i], v.hasP[i] = *rv.parts[i], true
 				}
 			}
+		case "date":
+			if rv.s != nil {
+				v.text, v.has = *rv.s, true
+			}
 		case "bool":
 			v.on = rv.s != nil && *rv.s != "" && strings.ToLower(*rv.s) != "false" && *rv.s != "0"
 			if rv.s != nil && strings.ToLower(*rv.s) == "true" {
@@ -77,6 +84,10 @@ func (f *aForm) fieldValue(fl *aField) fieldValue {
 			}
 		case "file":
 			v.file = valueString(f.initial[fl.name])
+		case "json":
+			if rv.s != nil {
+				v.text, v.has = pyJSONFromInput(*rv.s), true
+			}
 		default:
 			if rv.s != nil {
 				v.text, v.has = *rv.s, *rv.s != ""
@@ -342,10 +353,10 @@ func (f *aForm) renderSplitDateTime(fl *aField, name, id string, val fieldValue)
 	dAttrs = append(append(dAttrs, ex...), attr{"id", id + "_0"})
 	tAttrs = append(append(tAttrs, ex...), attr{"id", id + "_1"})
 	var dv, tv *string
-	if val.hasP[0] && val.parts[0] != "" {
+	if val.hasP[0] {
 		dv = &val.parts[0]
 	}
-	if val.hasP[1] && val.parts[1] != "" {
+	if val.hasP[1] {
 		tv = &val.parts[1]
 	}
 	return "<p class=\"datetime\">\n  Date: " + inputTag("text", name+"_0", dv, dAttrs) + "<br>\n  Time: " + inputTag("text", name+"_1", tv, tAttrs) + "\n</p>"
@@ -573,6 +584,12 @@ func (f *aForm) hiddenInitial(fl *aField) string {
 	name := "initial-" + f.htmlName(fl.name)
 	id := "initial-" + f.autoID(fl.name)
 	val := f.fieldValue(fl)
+	if f.bound && fl.kind != "splitdt" {
+		// the hidden initial value that came with the POST is carried on
+		if v, ok := f.data[name]; ok && len(v) > 0 {
+			val.text, val.has = v[len(v)-1], v[len(v)-1] != ""
+		}
+	}
 	if fl.kind == "splitdt" {
 		var out string
 		for i := 0; i < 2; i++ {
@@ -590,4 +607,118 @@ func (f *aForm) hiddenInitial(fl *aField) string {
 		v = &val.text
 	}
 	return inputTag("hidden", name, v, []attr{{"id", id}})
+}
+
+// pyJSONFromInput is what the form shows for the JSON a user submitted:
+// valid JSON written the way json.dumps does, anything else as typed.
+func pyJSONFromInput(raw string) string {
+	dec := json.NewDecoder(strings.NewReader(raw))
+	dec.UseNumber()
+	var b strings.Builder
+	if !pyJSONWrite(dec, &b) {
+		return raw
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return raw
+	}
+	return b.String()
+}
+
+func pyJSONWrite(dec *json.Decoder, b *strings.Builder) bool {
+	tok, err := dec.Token()
+	if err != nil {
+		return false
+	}
+	switch t := tok.(type) {
+	case json.Delim:
+		switch t {
+		case '[':
+			b.WriteByte('[')
+			first := true
+			for dec.More() {
+				if !first {
+					b.WriteString(", ")
+				}
+				first = false
+				if !pyJSONWrite(dec, b) {
+					return false
+				}
+			}
+			if _, err := dec.Token(); err != nil {
+				return false
+			}
+			b.WriteByte(']')
+		case '{':
+			b.WriteByte('{')
+			first := true
+			for dec.More() {
+				if !first {
+					b.WriteString(", ")
+				}
+				first = false
+				k, err := dec.Token()
+				if err != nil {
+					return false
+				}
+				b.WriteString(pyJSONString(k.(string)) + ": ")
+				if !pyJSONWrite(dec, b) {
+					return false
+				}
+			}
+			if _, err := dec.Token(); err != nil {
+				return false
+			}
+			b.WriteByte('}')
+		}
+	case string:
+		b.WriteString(pyJSONString(t))
+	case json.Number:
+		s := t.String()
+		if strings.ContainsAny(s, ".eE") {
+			f, err := strconv.ParseFloat(s, 64)
+			if err != nil {
+				return false
+			}
+			b.WriteString(filereader.PyRepr(f))
+		} else {
+			b.WriteString(s)
+		}
+	case bool:
+		b.WriteString(map[bool]string{true: "true", false: "false"}[t])
+	case nil:
+		b.WriteString("null")
+	}
+	return true
+}
+
+// pyJSONString is json.dumps(str, ensure_ascii=False).
+func pyJSONString(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range s {
+		switch r {
+		case '"':
+			b.WriteString(`\"`)
+		case '\\':
+			b.WriteString(`\\`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		case '\b':
+			b.WriteString(`\b`)
+		case '\f':
+			b.WriteString(`\f`)
+		default:
+			if r < 0x20 {
+				fmt.Fprintf(&b, `\u%04x`, r)
+			} else {
+				b.WriteRune(r)
+			}
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
 }

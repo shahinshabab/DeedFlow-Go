@@ -23,6 +23,9 @@ func adminValidFilename(name string) string {
 
 // uploadName is the name an uploaded file is stored under (upload_to + name).
 func (f *aForm) uploadName(field string, up *adminUpload, parentPK any) (string, error) {
+	if up.Saved != "" {
+		return up.Saved, nil
+	}
 	dir := ""
 	switch f.m.Label + "." + field {
 	case "deeds.deed.source_pdf":
@@ -41,7 +44,9 @@ func (f *aForm) uploadName(field string, up *adminUpload, parentPK any) (string,
 	if fn == "" || fn == "." || fn == ".." {
 		return "", fmt.Errorf("could not derive file name from %q", up.Name)
 	}
-	return media.Save(f.a.Cfg.MediaRoot, dir+fn, up.Data)
+	name, err := media.Save(f.a.Cfg.MediaRoot, dir+fn, up.Data)
+	up.Saved = name
+	return name, err
 }
 
 // dbValue converts a form value to the argument (and cast) the column takes.
@@ -148,13 +153,23 @@ func (f *aForm) saveInstance(fk string, parent any) (*adminObj, error) {
 			return nil, err
 		}
 	}
-	// reload the saved row
-	saved, err := f.a.loadObjTx(f.r, m, valueString(pk))
-	if err != nil {
-		return nil, err
+	// the saved instance, as it is in memory after save()
+	saved := &adminObj{m: m, vals: map[string]any{}}
+	for k, v := range vals {
+		saved.vals[k] = v
 	}
-	if saved == nil {
-		return nil, fmt.Errorf("admin: saved %s %v not found", m.Label, pk)
+	saved.vals[m.PK] = pk
+	for _, mf := range m.ModelFields {
+		if mf.AutoNow || mf.AutoNowAdd && insert {
+			saved.vals[mf.Name] = now
+		}
+		if up, ok := saved.vals[mf.Name].(*adminUpload); ok {
+			name, err := f.uploadName(mf.Name, up, parent)
+			if err != nil {
+				return nil, err
+			}
+			saved.vals[mf.Name] = name
+		}
 	}
 	f.inst = saved
 	return saved, nil

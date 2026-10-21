@@ -24,8 +24,9 @@ import (
 func idnaASCII(s string) (string, error) { return idna.Lookup.ToASCII(s) }
 
 type adminUpload struct {
-	Name string
-	Data []byte
+	Name  string
+	Data  []byte
+	Saved string // the stored name, once it has been saved
 }
 
 // choice is one option of a select.
@@ -552,11 +553,11 @@ func (f *aForm) cleanField(fl *aField) (any, []string) {
 		dec := json.NewDecoder(strings.NewReader(raw))
 		dec.UseNumber()
 		if err := dec.Decode(&v); err != nil || dec.More() {
-			return nil, []string{"Enter valid JSON."}
+			return nil, []string{"Enter a valid JSON."}
 		}
 		if dec.InputOffset() != int64(len(strings.TrimRight(raw, " \t\r\n"))) {
 			if _, err := dec.Token(); err == nil {
-				return nil, []string{"Enter valid JSON."}
+				return nil, []string{"Enter a valid JSON."}
 			}
 		}
 		return jsonValue{v}, nil
