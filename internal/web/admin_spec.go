@@ -19,6 +19,38 @@ type adminSpecFile struct {
 	AppNames  map[string]string `json:"app_names"`
 	AllModels []*adminAnyModel  `json:"all_models"`
 	Models    []*modelSpec      `json:"models"`
+	Graph     []*graphModel     `json:"delete_graph"`
+}
+
+// graphModel is any installed model with the relations a deletion cascades
+// through (Django's get_candidate_relations_to_delete).
+type graphModel struct {
+	Label             string            `json:"label"`
+	AppLabel          string            `json:"app_label"`
+	ModelName         string            `json:"model_name"`
+	ObjectName        string            `json:"object_name"`
+	VerboseName       string            `json:"verbose_name"`
+	VerboseNamePlural string            `json:"verbose_name_plural"`
+	Table             string            `json:"table"`
+	PK                string            `json:"pk"`
+	PKColumn          string            `json:"pk_column"`
+	Ordering          []graphOrdering   `json:"ordering"`
+	Fields            []*modelFieldSpec `json:"fields"`
+	Relations         []graphRelation   `json:"relations"`
+	spec              *modelSpec
+}
+
+type graphOrdering struct {
+	Column string `json:"column"`
+	Desc   bool   `json:"desc"`
+}
+
+type graphRelation struct {
+	Model    string `json:"model"`
+	Field    string `json:"field"`
+	Column   string `json:"column"`
+	OnDelete string `json:"on_delete"`
+	Null     bool   `json:"null"`
 }
 
 // adminAnyModel is any installed model (for permission and content type names).
@@ -256,11 +288,14 @@ func (m *modelSpec) field(name string) *modelFieldSpec { return m.byName[name] }
 
 // adminSite is the parsed spec.
 type adminSite struct {
-	spec    *adminSpecFile
-	models  map[string]*modelSpec // by label
-	order   []*modelSpec
-	any     map[string]*adminAnyModel
-	appList []string // app labels with registered models, sorted by verbose name
+	spec   *adminSpecFile
+	models map[string]*modelSpec // by label
+	order  []*modelSpec
+	// inlineModels are the models that only appear as inlines.
+	inlineModels map[string]*modelSpec
+	graph        map[string]*graphModel
+	any          map[string]*adminAnyModel
+	appList      []string // app labels with registered models, sorted by verbose name
 }
 
 func loadAdminSite() *adminSite {
@@ -268,7 +303,7 @@ func loadAdminSite() *adminSite {
 	if err := json.Unmarshal(adminSpecJSON, &spec); err != nil {
 		panic(fmt.Errorf("admin spec: %w", err))
 	}
-	s := &adminSite{spec: &spec, models: map[string]*modelSpec{}, any: map[string]*adminAnyModel{}}
+	s := &adminSite{spec: &spec, models: map[string]*modelSpec{}, any: map[string]*adminAnyModel{}, inlineModels: map[string]*modelSpec{}}
 	for _, m := range spec.AllModels {
 		s.any[m.Label] = m
 	}
@@ -284,6 +319,27 @@ func loadAdminSite() *adminSite {
 		}
 		s.models[m.Label] = m
 		s.order = append(s.order, m)
+	}
+	s.graph = map[string]*graphModel{}
+	for _, g := range spec.Graph {
+		s.graph[g.Label] = g
+		if m := s.models[g.Label]; m != nil {
+			g.spec = m
+			continue
+		}
+		gm := &modelSpec{Label: g.Label, AppLabel: g.AppLabel, ModelName: g.ModelName, VerboseName: g.VerboseName,
+			VerboseNamePlural: g.VerboseNamePlural, Table: g.Table, PK: g.PK, ModelFields: g.Fields, byName: map[string]*modelFieldSpec{}}
+		for _, f := range g.Fields {
+			gm.byName[f.Name] = f
+		}
+		g.spec = gm
+	}
+	for _, m := range spec.Models {
+		for _, in := range m.Inlines {
+			if s.models[in.Model] == nil && s.inlineModels[in.Model] == nil {
+				s.inlineModels[in.Model] = inlineModel(in)
+			}
+		}
 	}
 	return s
 }

@@ -150,6 +150,38 @@ def list_display_spec(ma, req):
     return out
 
 
+def delete_graph(django_apps):
+    """Every model with the relations that cascade a deletion, in the order
+    Django's collector walks them."""
+    from django.db.models.deletion import get_candidate_relations_to_delete
+
+    out = []
+    for m in django_apps.get_models(include_auto_created=True):
+        opts = m._meta
+        ordering = []
+        for o in opts.ordering:
+            desc = o.startswith("-")
+            name = o.lstrip("-")
+            try:
+                col = opts.get_field(name).column
+            except Exception:
+                continue
+            ordering.append({"column": col, "desc": desc})
+        out.append({
+            "label": opts.label_lower, "app_label": opts.app_label, "model_name": opts.model_name,
+            "object_name": opts.object_name,
+            "verbose_name": str(opts.verbose_name), "verbose_name_plural": str(opts.verbose_name_plural),
+            "table": opts.db_table, "pk": opts.pk.name, "pk_column": opts.pk.column,
+            "ordering": ordering, "auto_created": opts.auto_created is not False,
+            "fields": [model_field_spec(f) for f in opts.concrete_fields],
+            "relations": [{"model": r.related_model._meta.label_lower, "field": r.field.name,
+                           "column": r.field.column, "on_delete": r.field.remote_field.on_delete.__name__,
+                           "null": r.field.null}
+                          for r in get_candidate_relations_to_delete(opts)],
+        })
+    return out
+
+
 def main():
     req = RequestFactory().get("/")
     req.user = User.objects.filter(is_superuser=True).first()
@@ -201,7 +233,8 @@ def main():
                    "app_verbose_name": str(m._meta.app_config.verbose_name), "table": m._meta.db_table}
                   for m in django_apps.get_models()]
     app_names = {c.label: str(c.verbose_name) for c in django_apps.get_app_configs()}
-    json.dump({"apps": apps, "app_names": app_names, "all_models": all_models, "models": models_out},
+    json.dump({"apps": apps, "app_names": app_names, "all_models": all_models, "models": models_out,
+               "delete_graph": delete_graph(django_apps)},
               sys.stdout, indent=1, sort_keys=False)
 
 

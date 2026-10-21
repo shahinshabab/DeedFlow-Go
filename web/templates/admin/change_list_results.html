@@ -18,16 +18,13 @@
          <a href="{{ header.url_toggle }}" class="toggle {{ header.ascending|yesno:'ascending,descending' }}" title="{% translate "Toggle sorting" %}"></a>
        </div>
    {% endif %}
-   <div class="text">{% if header.sortable %}<a href="{{ header.url_primary }}">{{ header.text|capfirst }}</a>{% else %}<span>{{ header.text|capfirst }}</span>{% endif %}</div>
+   <div class="text">{% if header.sortable %}<a href="{{ header.url_primary }}">{{ header.text|capfirst }}</a>{% else %}<span>{% if header.html_text %}{{ header.html_text }}{% else %}{{ header.text|capfirst }}{% endif %}</span>{% endif %}</div>
    <div class="clear"></div>
 </th>{% endfor %}
 </tr>
 </thead>
 <tbody>
 {% for result in results %}
-{% if result.form and result.form.non_field_errors %}
-    <tr><td colspan="{{ result|length }}">{{ result.form.non_field_errors }}</td></tr>
-{% endif %}
 <tr>{% for item in result %}{{ item }}{% endfor %}</tr>
 {% endfor %}
 </tbody>

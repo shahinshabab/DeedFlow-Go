@@ -43,7 +43,7 @@
     {% block object_tools %}
         <ul class="object-tools">
           {% block object_tools_items %}
-            {% change_list_object_tools %}
+            {% include "admin/change_list_object_tools.html" %}
           {% endblock %}
         </ul>
     {% endblock %}
@@ -55,8 +55,7 @@
     {% endif %}
     <div class="module{% if cl.has_filters %} filtered{% endif %}" id="changelist">
       <div class="changelist-form-container">
-        {% block search %}{% search_form cl %}{% endblock %}
-        {% block date_hierarchy %}{% if cl.date_hierarchy %}{% date_hierarchy cl %}{% endif %}{% endblock %}
+        {% block search %}{% include "admin/search_form.html" %}{% endblock %}
 
         <form id="changelist-form" method="post"{% if cl.formset and cl.formset.is_multipart %} enctype="multipart/form-data"{% endif %} novalidate>{% csrf_token %}
         {% if cl.formset %}
@@ -64,11 +63,11 @@
         {% endif %}
 
         {% block result_list %}
-          {% if action_form and actions_on_top and cl.show_admin_actions %}{% admin_actions %}{% endif %}
-          {% result_list cl %}
-          {% if action_form and actions_on_bottom and cl.show_admin_actions %}{% admin_actions %}{% endif %}
+          {% if action_form and actions_on_top and cl.show_admin_actions %}{% include "admin/actions.html" %}{% endif %}
+          {% include "admin/change_list_results.html" %}
+          {% if action_form and actions_on_bottom and cl.show_admin_actions %}{% include "admin/actions.html" %}{% endif %}
         {% endblock %}
-        {% block pagination %}{% pagination cl %}{% endblock %}
+        {% block pagination %}{% include "admin/pagination.html" %}{% endblock %}
         </form>
       </div>
       {% block filters %}
@@ -84,7 +83,7 @@
                 <a href="{{ cl.clear_all_filters_qs }}">&#10006; {% translate "Clear all filters" %}</a>
               </h3>{% endif %}
             </div>{% endif %}
-            {% for spec in cl.filter_specs %}{% admin_list_filter cl spec %}{% endfor %}
+            {% for spec in cl.filter_specs %}{% include "admin/filter.html" with title=spec.title choices=spec.choices %}{% endfor %}
           </nav>
         {% endif %}
       {% endblock %}

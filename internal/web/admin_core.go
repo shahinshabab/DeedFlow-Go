@@ -410,7 +410,6 @@ func (a *App) adminPasswordChangeDone(r *adminReq)                  { a.adminNot
 func (a *App) adminAutocomplete(r *adminReq)                        { a.adminNotFound(r.c) }
 func (a *App) adminViewOnSite(r *adminReq)                          { a.adminNotFound(r.c) }
 func (a *App) adminUserPassword(r *adminReq, m *modelSpec)          { a.adminNotFound(r.c) }
-func (a *App) adminChangelist(r *adminReq, m *modelSpec)            { a.adminNotFound(r.c) }
 func (a *App) adminChangeForm(r *adminReq, m *modelSpec, pk string) { a.adminNotFound(r.c) }
 func (a *App) adminHistory(r *adminReq, m *modelSpec)               { a.adminNotFound(r.c) }
 func (a *App) adminDelete(r *adminReq, m *modelSpec)                { a.adminNotFound(r.c) }

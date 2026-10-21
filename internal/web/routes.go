@@ -55,6 +55,7 @@ func (rt *Router) Handle(name, path string, h http.Handler) {
 // more specific, like "accounts/payments/<int:pk>/" and
 // "accounts/<str:token>/receipts/").
 type orderedRoute struct {
+	name     string
 	re       *regexp.Regexp
 	h        http.Handler
 	n        []string
@@ -93,7 +94,7 @@ func (rt *Router) HandleOrdered(name, path string, h http.Handler) {
 	if i := strings.Index(prefix, "/"); i >= 0 {
 		prefix = prefix[:i+1]
 	}
-	rt.ordered[prefix] = append(rt.ordered[prefix], orderedRoute{re: regexp.MustCompile(re.String()), h: h, n: names,
+	rt.ordered[prefix] = append(rt.ordered[prefix], orderedRoute{name: name, re: regexp.MustCompile(re.String()), h: h, n: names,
 		catchAll: strings.HasSuffix(name, "catch_all")})
 }
 
@@ -177,6 +178,20 @@ func (rt *Router) Resolves(path string) bool {
 		}
 	}
 	return false
+}
+
+// NameOf is the name of the ordered route (other than a catch-all) that matches the path.
+func (rt *Router) NameOf(path string) (string, bool) {
+	rt.mu.RLock()
+	defer rt.mu.RUnlock()
+	for _, routes := range rt.ordered {
+		for _, o := range routes {
+			if !o.catchAll && o.re.MatchString(path) {
+				return o.name, true
+			}
+		}
+	}
+	return "", false
 }
 
 // ServeHTTP dispatches to the registered handlers.
