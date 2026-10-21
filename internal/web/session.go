@@ -26,6 +26,7 @@ const (
 type Message struct {
 	Tags string `json:"tags"`
 	Text string `json:"text"`
+	Safe bool   `json:"safe,omitempty"` // Text is HTML (a SafeString)
 }
 
 // Session is the visitor's server-side session.
@@ -76,6 +77,16 @@ func (s *Session) addMessage(tags, text string) {
 	s.Set("messages", list)
 }
 
+// addSafeMessage queues a message whose text is HTML that is already escaped.
+func (s *Session) addSafeMessage(tags, html string) {
+	var list []any
+	if cur, ok := s.row.Data["messages"].([]any); ok {
+		list = cur
+	}
+	list = append(list, map[string]any{"tags": tags, "text": html, "safe": true})
+	s.Set("messages", list)
+}
+
 // popMessages returns and clears the queued messages.
 func (s *Session) popMessages() []Message {
 	cur, ok := s.row.Data["messages"].([]any)
@@ -85,7 +96,8 @@ func (s *Session) popMessages() []Message {
 	var out []Message
 	for _, m := range cur {
 		if mm, ok := m.(map[string]any); ok {
-			out = append(out, Message{Tags: strFrom(mm["tags"]), Text: strFrom(mm["text"])})
+			safe, _ := mm["safe"].(bool)
+			out = append(out, Message{Tags: strFrom(mm["tags"]), Text: strFrom(mm["text"]), Safe: safe})
 		}
 	}
 	s.Delete("messages")

@@ -11,6 +11,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/shahinshabab/deedflow-go/internal/db"
 )
 
 // Generic access to the rows of the models the admin shows: loading them by
@@ -153,11 +155,15 @@ func (a *App) normalizeValue(f *modelFieldSpec, v any) any {
 
 // loadObj finds one object by primary key; the pk is text as it comes from a URL.
 func (a *App) loadObj(ctx context.Context, m *modelSpec, pk string) (*adminObj, error) {
+	return a.loadObjQ(ctx, a.Store.Querier(), m, pk)
+}
+
+func (a *App) loadObjQ(ctx context.Context, q db.Querier, m *modelSpec, pk string) (*adminObj, error) {
 	arg, ok := coerceValue(m.pkField(), pk)
 	if !ok {
 		return nil, nil
 	}
-	rows, err := a.Store.Querier().Query(ctx, fmt.Sprintf(`SELECT %s FROM %s t WHERE t."%s" = $1`,
+	rows, err := q.Query(ctx, fmt.Sprintf(`SELECT %s FROM %s t WHERE t."%s" = $1`,
 		m.selectList("t"), quoteIdent(m.Table), m.pkField().Column), arg)
 	if err != nil {
 		return nil, err
@@ -246,10 +252,14 @@ type reprEnv struct {
 	a     *App
 	ctx   context.Context
 	cache map[string]string
+	// overrides are objects whose in-memory state differs from the database
+	// (a form that failed validation leaves its instance modified).
+	overrides map[string]*adminObj
+	q         func() db.Querier // reads go through this (the request's transaction)
 }
 
 func (a *App) newRepr(ctx context.Context) *reprEnv {
-	return &reprEnv{a: a, ctx: ctx, cache: map[string]string{}}
+	return &reprEnv{a: a, ctx: ctx, cache: map[string]string{}, overrides: map[string]*adminObj{}, q: a.Store.Querier}
 }
 
 func choiceLabel(f *modelFieldSpec, v any) (string, bool) {
@@ -366,6 +376,9 @@ func (e *reprEnv) related(m *modelSpec, field string, id any) string {
 // byID is str() of the object of a model with the given primary key.
 func (e *reprEnv) byID(label, id string) string {
 	key := label + ":" + id
+	if o, ok := e.overrides[key]; ok {
+		return e.str(o)
+	}
 	if s, ok := e.cache[key]; ok {
 		return s
 	}
@@ -373,7 +386,7 @@ func (e *reprEnv) byID(label, id string) string {
 	if label == "auth.permission" {
 		s = e.permissionStr(id)
 	} else if m := adminSiteSpec.model(label); m != nil {
-		if o, err := e.a.loadObj(e.ctx, m, id); err == nil && o != nil {
+		if o, err := e.a.loadObjQ(e.ctx, e.q(), m, id); err == nil && o != nil {
 			s = e.str(o)
 		}
 	}
@@ -389,7 +402,7 @@ func (e *reprEnv) permissionStr(id string) string {
 	if err != nil {
 		return id
 	}
-	if err := e.a.Store.Querier().QueryRow(e.ctx, `SELECT content_type_id, name FROM auth_permission WHERE id = $1`, n).Scan(&ct, &name); err != nil {
+	if err := e.q().QueryRow(e.ctx, `SELECT content_type_id, name FROM auth_permission WHERE id = $1`, n).Scan(&ct, &name); err != nil {
 		return id
 	}
 	return e.contentTypeStr(ct) + " | " + name

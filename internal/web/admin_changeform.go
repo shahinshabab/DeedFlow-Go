@@ -310,6 +310,7 @@ func (a *App) saveChangeForm(v *cfView, pf url.Values) bool {
 		}
 		msg = a.changeMessage(v, changes)
 		re := a.newRepr(c.Context())
+		re.q = r.q
 		flag := logChange
 		if v.add {
 			flag = logAddition
@@ -337,6 +338,7 @@ func (a *App) changeMessage(v *cfView, changes []*inlineChange) string {
 		parts = append(parts, `{"changed": {"fields": [`+strings.Join(q, ", ")+`]}}`)
 	}
 	re := a.newRepr(v.r.c.Context())
+	re.q = v.r.q
 	for i, ch := range changes {
 		in := v.inlines[i]
 		name := pyString(in.spec.VerboseName)
@@ -398,13 +400,13 @@ func (a *App) changeResponse(v *cfView, obj *adminObj, pf url.Values) {
 			if canChange {
 				text += " You may edit it again below."
 			}
-			c.Session.addMessage("success", text)
+			c.Session.addSafeMessage("success", text)
 			redirect(addPreservedFilters(objURL, opts, preserved, a))
 		case hasKeyValues(pf, "_addanother"):
-			c.Session.addMessage("success", fmt.Sprintf("The %s “%s” was added successfully. You may add another %s below.", esc(name), linked, esc(name)))
+			c.Session.addSafeMessage("success", fmt.Sprintf("The %s “%s” was added successfully. You may add another %s below.", esc(name), linked, esc(name)))
 			redirect(addPreservedFilters(c.R.URL.Path, opts, preserved, a))
 		default:
-			c.Session.addMessage("success", fmt.Sprintf("The %s “%s” was added successfully.", esc(name), linked))
+			c.Session.addSafeMessage("success", fmt.Sprintf("The %s “%s” was added successfully.", esc(name), linked))
 			redirect(a.postSaveURL(r, m, preserved))
 		}
 		return
@@ -413,13 +415,13 @@ func (a *App) changeResponse(v *cfView, obj *adminObj, pf url.Values) {
 	name := esc(m.VerboseName)
 	switch {
 	case hasKeyValues(pf, "_continue"):
-		c.Session.addMessage("success", fmt.Sprintf("The %s “%s” was changed successfully. You may edit it again below.", name, linked))
+		c.Session.addSafeMessage("success", fmt.Sprintf("The %s “%s” was changed successfully. You may edit it again below.", name, linked))
 		redirect(addPreservedFilters(c.R.URL.Path, opts, preserved, a))
 	case hasKeyValues(pf, "_addanother"):
-		c.Session.addMessage("success", fmt.Sprintf("The %s “%s” was changed successfully. You may add another %s below.", name, linked, name))
+		c.Session.addSafeMessage("success", fmt.Sprintf("The %s “%s” was changed successfully. You may add another %s below.", name, linked, name))
 		redirect(addPreservedFilters(a.adminURL(m, "add"), opts, preserved, a))
 	default:
-		c.Session.addMessage("success", fmt.Sprintf("The %s “%s” was changed successfully.", name, linked))
+		c.Session.addSafeMessage("success", fmt.Sprintf("The %s “%s” was changed successfully.", name, linked))
 		redirect(a.postSaveURL(r, m, preserved))
 	}
 }

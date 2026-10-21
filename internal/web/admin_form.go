@@ -110,6 +110,7 @@ type aForm struct {
 	emptyOK     bool
 
 	// hooks for forms that are not plain model forms
+	formClean func(f *aForm)
 	postClean func(f *aForm)
 	cleanFld  map[string]func(f *aForm, v any) (any, string)
 	modelOnly bool
@@ -118,7 +119,7 @@ type aForm struct {
 func (a *App) newForm(r *adminReq, m *modelSpec, specs map[string]*formFieldSpec, order []string, prefix string) *aForm {
 	f := &aForm{r: r, a: a, ctx: r.c.Context(), m: m, prefix: prefix, order: order, fields: map[string]*aField{},
 		errs: map[string][]string{}, cleaned: map[string]any{}, cleanedOK: map[string]bool{}, initial: map[string]any{},
-		m2mInit: map[string][]string{}, choiceCache: map[string][]choice{}, re: a.newRepr(r.c.Context())}
+		m2mInit: map[string][]string{}, choiceCache: map[string][]choice{}, re: r.reprEnv()}
 	for _, n := range order {
 		sp := specs[n]
 		if sp == nil {
@@ -139,6 +140,10 @@ func (f *aForm) htmlName(n string) string {
 func (f *aForm) autoID(n string) string { return "id_" + f.htmlName(n) }
 
 func (f *aForm) addError(field, msg string) {
+	if field != "" {
+		delete(f.cleaned, field)
+		f.cleanedOK[field] = false
+	}
 	if field == "" {
 		f.nonField = append(f.nonField, msg)
 		return
@@ -386,9 +391,6 @@ func (f *aForm) cleanField(fl *aField) (any, []string) {
 		if fl.kind == "email" && !validEmail(s) {
 			return nil, []string{"Enter a valid email address."}
 		}
-		if fl.kind == "username" && !isUsername(s) {
-			return nil, []string{"Enter a valid username. This value may contain only letters, numbers, and @/./+/-/_ characters."}
-		}
 		if fn := f.cleanFld[fl.name]; fn != nil {
 			v, msg := fn(f, s)
 			if msg != "" {
@@ -482,6 +484,11 @@ func (f *aForm) cleanField(fl *aField) (any, []string) {
 		}
 		for _, c := range f.choicesOf(fl) {
 			if c.value == raw {
+				if fl.mf != nil && fl.mf.isInt() {
+					if n, err := strconv.ParseInt(raw, 10, 64); err == nil {
+						return n, nil
+					}
+				}
 				return raw, nil
 			}
 		}
@@ -759,6 +766,9 @@ func (f *aForm) fullClean() {
 		// an unchanged extra form is dropped without being validated
 		f.errs, f.errOrder, f.nonField = map[string][]string{}, nil, nil
 		return
+	}
+	if f.formClean != nil {
+		f.formClean(f)
 	}
 	f.postCleanModel()
 	if f.postClean != nil {

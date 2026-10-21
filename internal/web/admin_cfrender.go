@@ -245,6 +245,9 @@ func (v *cfView) inlineMap(fs *inlineFS) map[string]any {
 		var orig *adminObj
 		if i < fs.nInitial {
 			orig = f.inst
+			if orig != nil && f.vals != nil {
+				orig = &adminObj{m: orig.m, vals: f.vals}
+			}
 		}
 		forms = append(forms, mk(f, orig, i))
 	}
@@ -321,6 +324,11 @@ func (a *App) renderChangeForm(v *cfView, isPost, formValidated bool, pf url.Val
 		title = "View " + m.VerboseName
 	}
 	ctx := r.base(title)
+	shown := v.obj
+	if v.obj != nil && v.form.vals != nil && isPost {
+		shown = &adminObj{m: m, vals: v.form.vals}
+		v.form.re.overrides[m.Label+":"+v.obj.pkString()] = shown
+	}
 	preserved := v.preservedFilters()
 	errCount := 0
 	if isPost {
@@ -345,7 +353,7 @@ func (a *App) renderChangeForm(v *cfView, isPost, formValidated bool, pf url.Val
 	ctx["to_field_var"] = toFieldVr
 	ctx["preserved_filters"] = preserved
 	if !add {
-		ctx["subtitle"] = v.form.re.str(v.obj)
+		ctx["subtitle"] = v.form.re.str(shown)
 		ctx["original_repr"] = ctx["subtitle"]
 		ctx["original_pk"] = v.obj.pkString()
 		ctx["object_id"] = v.obj.pkString()

@@ -149,6 +149,9 @@ func (fs *inlineFS) build(bound bool, data url.Values, files map[string]*adminUp
 	if bound {
 		initial = fs.formsetInt(mgmtInitial, 0)
 		total = fs.formsetInt(mgmtTotal, 0)
+		if len(fs.mgmtErrors()) > 0 {
+			initial, total = 0, 0
+		}
 		if total > 1000 {
 			total = 1000
 		}
@@ -232,9 +235,13 @@ func (fs *inlineFS) validate() bool {
 	valid := true
 	fs.nonForm = nil
 	if fs.bound {
-		if _, ok := fs.data[fs.prefix+"-"+mgmtTotal]; !ok {
-			fs.nonForm = append(fs.nonForm, "ManagementForm data is missing or has been tampered with. Missing fields: "+fs.prefix+"-TOTAL_FORMS, "+fs.prefix+"-INITIAL_FORMS. You may need to file a bug report if the issue persists.")
-			return false
+		if errs := fs.mgmtErrors(); len(errs) > 0 {
+			var names []string
+			for _, e := range errs {
+				n := strings.TrimSuffix(strings.TrimPrefix(strings.SplitN(e, ")", 2)[0], "(Hidden field "), "")
+				names = append(names, fs.prefix+"-"+n)
+			}
+			fs.nonForm = append(fs.nonForm, "ManagementForm data is missing or has been tampered with. Missing fields: "+strings.Join(names, ", ")+". You may need to file a bug report if the issue persists.")
 		}
 	}
 	for i, f := range fs.forms {
@@ -346,16 +353,58 @@ func changedLabels(f *aForm) []string {
 func (fs *inlineFS) verboseName() string       { return fs.spec.VerboseName }
 func (fs *inlineFS) verboseNamePlural() string { return fs.spec.VerboseNamePl }
 
+// mgmtErrors are the ManagementForm's own validation errors.
+func (fs *inlineFS) mgmtErrors() []string {
+	if !fs.bound {
+		return nil
+	}
+	var errs []string
+	for _, name := range []string{mgmtTotal, mgmtInitial, mgmtMin, mgmtMax} {
+		v, present := fs.data[fs.prefix+"-"+name]
+		required := name == mgmtTotal || name == mgmtInitial
+		raw := ""
+		if present && len(v) > 0 {
+			raw = v[len(v)-1]
+		}
+		if strings.TrimSpace(raw) == "" {
+			if required {
+				errs = append(errs, "(Hidden field "+name+") "+msgRequired)
+			}
+			continue
+		}
+		if _, ok := pyIntBig(raw); !ok {
+			errs = append(errs, "(Hidden field "+name+") Enter a whole number.")
+		}
+	}
+	return errs
+}
+
 // managementForm is the formset's four hidden inputs.
 func (fs *inlineFS) managementForm() string {
 	total, initial := fs.total, fs.nInitial
 	if !fs.bound && fs.parent == nil {
 		total, initial = 0, 0
 	}
+	vals := [][2]string{{mgmtTotal, strconv.Itoa(total)}, {mgmtInitial, strconv.Itoa(initial)},
+		{mgmtMin, strconv.Itoa(fs.minNum)}, {mgmtMax, strconv.Itoa(fs.maxNum)}}
+	errs := fs.mgmtErrors()
 	var b strings.Builder
-	for _, kv := range [][2]string{{mgmtTotal, strconv.Itoa(total)}, {mgmtInitial, strconv.Itoa(initial)},
-		{mgmtMin, strconv.Itoa(fs.minNum)}, {mgmtMax, strconv.Itoa(fs.maxNum)}} {
-		b.WriteString(`<input type="hidden" name="` + esc(fs.prefix+"-"+kv[0]) + `" value="` + esc(kv[1]) + `" id="id_` + esc(fs.prefix+"-"+kv[0]) + `">`)
+	for _, kv := range vals {
+		name := fs.prefix + "-" + kv[0]
+		if fs.bound {
+			// a bound management form shows what was submitted
+			raw, present := fs.data[name]
+			if !present || len(raw) == 0 {
+				b.WriteString(`<input type="hidden" name="` + esc(name) + `" id="id_` + esc(name) + `">`)
+				continue
+			}
+			b.WriteString(`<input type="hidden" name="` + esc(name) + `" value="` + esc(raw[len(raw)-1]) + `" id="id_` + esc(name) + `">`)
+			continue
+		}
+		b.WriteString(`<input type="hidden" name="` + esc(name) + `" value="` + esc(kv[1]) + `" id="id_` + esc(name) + `">`)
+	}
+	if len(errs) > 0 {
+		return strings.Replace(errorList(errs), `class="errorlist"`, `class="errorlist nonfield"`, 1) + "\n<div>" + b.String() + "</div>"
 	}
 	return b.String()
 }

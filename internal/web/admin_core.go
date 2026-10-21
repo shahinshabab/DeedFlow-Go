@@ -83,6 +83,16 @@ type adminReq struct {
 	a     *App
 	perms *adminPerms
 	tx    *store.Store // set while a write runs in a transaction
+	repr  *reprEnv
+}
+
+// reprEnv is the request's str() helper, shared by all its forms.
+func (r *adminReq) reprEnv() *reprEnv {
+	if r.repr == nil {
+		r.repr = r.a.newRepr(r.c.Context())
+		r.repr.q = r.q
+	}
+	return r.repr
 }
 
 // q is the database handle: the transaction while one is open.
@@ -113,6 +123,9 @@ func (a *App) adminView(fn func(r *adminReq)) Handler {
 
 func isUsablePassword(p string) bool { return p != "" && !strings.HasPrefix(p, "!") }
 
+// hasUsablePassword is User.has_usable_password().
+func hasUsablePassword(p string) bool { return !strings.HasPrefix(p, "!") }
+
 func (r *adminReq) userMap() map[string]any {
 	u := r.c.User
 	short := u.FirstName
@@ -122,7 +135,7 @@ func (r *adminReq) userMap() map[string]any {
 	return map[string]any{
 		"is_authenticated": true, "is_anonymous": false, "is_active": u.IsActive, "is_staff": u.IsStaff,
 		"is_superuser": u.IsSuperuser, "id": u.ID, "username": u.Username,
-		"get_short_name": u.FirstName, "get_username": u.Username, "has_usable_password": isUsablePassword(u.Password),
+		"get_short_name": u.FirstName, "get_username": u.Username, "has_usable_password": hasUsablePassword(u.Password),
 	}
 }
 
@@ -420,6 +433,3 @@ func (a *App) adminPasswordChange(r *adminReq)                      { a.adminNot
 func (a *App) adminPasswordChangeDone(r *adminReq)                  { a.adminNotFound(r.c) }
 func (a *App) adminAutocomplete(r *adminReq)                        { a.adminNotFound(r.c) }
 func (a *App) adminViewOnSite(r *adminReq)                          { a.adminNotFound(r.c) }
-func (a *App) adminUserPassword(r *adminReq, m *modelSpec)          { a.adminNotFound(r.c) }
-func (a *App) adminHistory(r *adminReq, m *modelSpec)               { a.adminNotFound(r.c) }
-func (a *App) adminDelete(r *adminReq, m *modelSpec)                { a.adminNotFound(r.c) }

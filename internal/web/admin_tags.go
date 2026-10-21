@@ -26,6 +26,7 @@ func init() {
 	must(pongo2.RegisterFilter("unordered_list", filterUnorderedList))
 	must(pongo2.RegisterFilter("get", filterGet))
 	must(pongo2.ReplaceFilter("urlencode", filterURLEncode))
+	must(pongo2.ReplaceFilter("capfirst", filterCapfirst))
 }
 
 // filterURLEncode is Django's urlencode (urllib.parse.quote with "/" safe).
@@ -325,4 +326,21 @@ func urlQuery(pairs [][2]string) string {
 		b.WriteString(url.QueryEscape(p[0]) + "=" + url.QueryEscape(p[1]))
 	}
 	return b.String()
+}
+
+// safeHTML marks HTML text as already escaped; filters that keep a value safe look for it.
+type safeHTML string
+
+func (s safeHTML) String() string { return string(s) }
+
+// filterCapfirst is Django's capfirst: it keeps the value safe if it was.
+func filterCapfirst(in *pongo2.Value, param *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
+	iface := in.Interface()
+	if pv, ok := iface.(*pongo2.Value); ok {
+		iface = pv.Interface()
+	}
+	if h, ok := iface.(safeHTML); ok {
+		return pongo2.AsSafeValue(safeHTML(capfirst(string(h)))), nil
+	}
+	return pongo2.AsValue(capfirst(in.String())), nil
 }

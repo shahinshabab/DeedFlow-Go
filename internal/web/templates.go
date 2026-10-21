@@ -325,13 +325,17 @@ func (c *Ctx) templateUser() map[string]any {
 
 // messageMaps are the flash messages as the templates read them (message.tags,
 // message.text).
-func messageMaps(msgs []Message) []map[string]string {
+func messageMaps(msgs []Message) []map[string]any {
 	if len(msgs) == 0 {
 		return nil
 	}
-	out := make([]map[string]string, len(msgs))
+	out := make([]map[string]any, len(msgs))
 	for i, m := range msgs {
-		out[i] = map[string]string{"tags": m.Tags, "text": m.Text}
+		var text any = m.Text
+		if m.Safe {
+			text = pongo2.AsSafeValue(safeHTML(m.Text))
+		}
+		out[i] = map[string]any{"tags": m.Tags, "text": text}
 	}
 	return out
 }

@@ -294,7 +294,7 @@ func (f *aForm) renderAutocomplete(fl *aField, w *widgetSpec, name, id string, v
 	attrs = append(attrs, attr{"id", id})
 	var b strings.Builder
 	b.WriteString(`<select name="` + esc(name) + `"` + attrsHTML(attrs) + ">")
-	if val.text != "" {
+	if _, ok := f.lookupChoice(fl, val.text); ok && val.text != "" {
 		q := fl.spec.Queryset
 		rel := adminSiteSpec.model(q.Label)
 		label := f.re.byID(rel.Label, val.text)
@@ -324,7 +324,7 @@ func (f *aForm) renderRadio(fl *aField, w *widgetSpec, name, id string, base []a
 		oid := id + "_" + strconv.Itoa(i)
 		sel := !selected && c.value == val.text
 		selected = selected || sel
-		attrs := []attr{{"id", oid}}
+		attrs := append(append([]attr{}, base...), attr{"id", oid})
 		if sel {
 			attrs = append(attrs, attr{"checked", true})
 		}
@@ -338,7 +338,7 @@ func (f *aForm) renderRadio(fl *aField, w *widgetSpec, name, id string, base []a
 func (f *aForm) renderSplitDateTime(fl *aField, name, id string, val fieldValue) string {
 	dAttrs := []attr{{"class", "vDateField"}, {"size", "10"}}
 	tAttrs := []attr{{"class", "vTimeField"}, {"size", "8"}}
-	ex := f.extraAttrs(fl, false)
+	ex := f.extraAttrs(fl, true)
 	dAttrs = append(append(dAttrs, ex...), attr{"id", id + "_0"})
 	tAttrs = append(append(tAttrs, ex...), attr{"id", id + "_1"})
 	var dv, tv *string
@@ -371,28 +371,50 @@ func (f *aForm) renderFile(fl *aField, name, id string, val fieldValue) string {
 	return b.String()
 }
 
-// renderPasswordHash is ReadOnlyPasswordHashWidget's summary of a stored password.
+// renderPasswordHash is ReadOnlyPasswordHashWidget.
 func (f *aForm) renderPasswordHash(fl *aField) string {
-	return passwordSummary(valueString(f.initial[fl.name]), f.autoID(fl.name))
-}
-
-func passwordSummary(encoded, id string) string {
-	div := `<div id="` + esc(id) + `">`
-	if !isUsablePassword(encoded) {
-		return div + "<strong>No password set.</strong></div>"
+	attrs := []attr{}
+	if fl.disabled {
+		attrs = append(attrs, attr{"disabled", true})
 	}
-	parts := strings.Split(encoded, "$")
-	if len(parts) < 4 || parts[0] != "pbkdf2_sha256" && parts[0] != "pbkdf2_sha1" {
-		return div + "<strong>Invalid password format or unknown hashing algorithm.</strong></div>"
+	if fl.help != "" {
+		attrs = append(attrs, attr{"aria-describedby", f.autoID(fl.name) + "_helptext"})
 	}
-	mask := func(s string, keep int) string {
-		if len(s) < keep {
-			return strings.Repeat("*", len(s))
+	attrs = append(attrs, attr{"id", f.autoID(fl.name)})
+	encoded := valueString(f.initial[fl.name])
+	var b strings.Builder
+	b.WriteString("<div" + attrsHTML(attrs) + ">\n  <p>\n    \n")
+	usable := isUsablePassword(encoded)
+	button := "Reset password"
+	entry := func(label, value string) {
+		b.WriteString("    <strong>" + esc(label) + "</strong>")
+		if value != "" {
+			b.WriteString(": <bdi>" + esc(value) + "</bdi>")
 		}
-		return s[:keep] + strings.Repeat("*", len(s)-keep)
+		b.WriteString("\n    \n")
 	}
-	return div + "<strong>algorithm</strong>: <bdi>" + esc(parts[0]) + "</bdi> <strong>iterations</strong>: <bdi>" + esc(parts[1]) +
-		"</bdi> <strong>salt</strong>: <bdi>" + esc(mask(parts[2], 6)) + "</bdi> <strong>hash</strong>: <bdi>" + esc(mask(parts[3], 6)) + "</bdi></div>"
+	if usable {
+		parts := strings.Split(encoded, "$")
+		if len(parts) == 4 && (parts[0] == "pbkdf2_sha256" || parts[0] == "pbkdf2_sha1") {
+			mask := func(s string) string {
+				if len(s) <= 6 {
+					return s
+				}
+				return s[:6] + strings.Repeat("*", len(s)-6)
+			}
+			entry("algorithm", parts[0])
+			entry("iterations", parts[1])
+			entry("salt", mask(parts[2]))
+			entry("hash", mask(parts[3]))
+		} else {
+			entry("Invalid password format or unknown hashing algorithm.", "")
+		}
+	} else {
+		entry("No password set.", "")
+		button = "Set password"
+	}
+	b.WriteString("  </p>\n  <p><a class=\"button\" href=\"../password/\">" + button + "</a></p>\n</div>")
+	return b.String()
 }
 
 var _ = auth.MakePassword
@@ -490,7 +512,7 @@ func (f *aForm) nonFieldErrorsHTML() string {
 
 func (f *aForm) idForLabel(fl *aField) string {
 	switch fl.w.Class {
-	case "AdminSplitDateTime", "RadioSelect":
+	case "AdminSplitDateTime", "RadioSelect", "ReadOnlyPasswordHashWidget":
 		return ""
 	}
 	if fl.wi != nil && fl.wi.Class == "RadioSelect" {
@@ -536,6 +558,7 @@ func (f *aForm) boundMap(fl *aField) boundField {
 		"_html": html, "name": fl.name, "label": fl.label, "is_hidden": fl.hidden,
 		"id_for_label": f.idForLabel(fl), "help_text": safe(fl.help), "errors": safe(f.errorsHTML(fl.name)),
 		"html_name": f.htmlName(fl.name), "has_errors": len(f.errs[fl.name]) > 0, "required": fl.required,
+		"label_tag": safe(f.labelTag(fl, true)),
 	}
 	if fl.help == "" {
 		bf["help_text"] = ""
