@@ -1,0 +1,1794 @@
+{
+ "smart_split": [
+  {
+   "in": "a b",
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "in": " a  b ",
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "in": "\"a b\" c",
+   "out": [
+    "\"a b\"",
+    "c"
+   ]
+  },
+  {
+   "in": "'a b' c",
+   "out": [
+    "'a b'",
+    "c"
+   ]
+  },
+  {
+   "in": "a\"b c\"d e",
+   "out": [
+    "a\"b c\"d",
+    "e"
+   ]
+  },
+  {
+   "in": "\"unterminated x",
+   "out": [
+    "\"unterminated",
+    "x"
+   ]
+  },
+  {
+   "in": "x \"a \\\" b\" y",
+   "out": [
+    "x",
+    "\"a \\\" b\"",
+    "y"
+   ]
+  },
+  {
+   "in": "it's here",
+   "out": [
+    "it's",
+    "here"
+   ]
+  },
+  {
+   "in": "",
+   "out": []
+  },
+  {
+   "in": "   ",
+   "out": []
+  },
+  {
+   "in": "a\tb\nc",
+   "out": [
+    "a",
+    "b",
+    "c"
+   ]
+  }
+ ],
+ "quote": [
+  {
+   "in": "abc",
+   "out": "abc",
+   "back": "abc"
+  },
+  {
+   "in": "a/b",
+   "out": "a_2Fb",
+   "back": "a/b"
+  },
+  {
+   "in": "a_b",
+   "out": "a_5Fb",
+   "back": "a_b"
+  },
+  {
+   "in": "a:b",
+   "out": "a_3Ab",
+   "back": "a:b"
+  },
+  {
+   "in": "a b",
+   "out": "a b",
+   "back": "a b"
+  },
+  {
+   "in": "ünï",
+   "out": "ünï",
+   "back": "ünï"
+  },
+  {
+   "in": "a#b?c;d@e&f=g+h$i,j\"k[l]m<n>o%p\nq\\r",
+   "out": "a_23b_3Fc_3Bd_40e_26f_3Dg_2Bh_24i_2Cj_22k_5Bl_5Dm_3Cn_3Eo_25p_0Aq_5Cr",
+   "back": "a#b?c;d@e&f=g+h$i,j\"k[l]m<n>o%p\nq\\r"
+  },
+  {
+   "in": "_5F",
+   "out": "_5F5F",
+   "back": "_5F"
+  }
+ ],
+ "date": [
+  {
+   "in": "",
+   "ok": true,
+   "value": "None"
+  },
+  {
+   "in": "2026-01-02",
+   "ok": true,
+   "value": "2026-01-02"
+  },
+  {
+   "in": "2026-1-2",
+   "ok": true,
+   "value": "2026-01-02"
+  },
+  {
+   "in": "01/02/2026",
+   "ok": true,
+   "value": "2026-01-02"
+  },
+  {
+   "in": "01/02/26",
+   "ok": true,
+   "value": "2026-01-02"
+  },
+  {
+   "in": "02/30/2026",
+   "ok": false,
+   "errors": [
+    "Enter a valid date."
+   ]
+  },
+  {
+   "in": "2026/01/02",
+   "ok": false,
+   "errors": [
+    "Enter a valid date."
+   ]
+  },
+  {
+   "in": "02-01-2026",
+   "ok": false,
+   "errors": [
+    "Enter a valid date."
+   ]
+  },
+  {
+   "in": "Jan 2 2026",
+   "ok": true,
+   "value": "2026-01-02"
+  },
+  {
+   "in": "jan 2, 2026",
+   "ok": true,
+   "value": "2026-01-02"
+  },
+  {
+   "in": "2 Jan 2026",
+   "ok": true,
+   "value": "2026-01-02"
+  },
+  {
+   "in": "2 January, 2026",
+   "ok": true,
+   "value": "2026-01-02"
+  },
+  {
+   "in": "January 2 2026",
+   "ok": true,
+   "value": "2026-01-02"
+  },
+  {
+   "in": " 2026-01-02 ",
+   "ok": true,
+   "value": "2026-01-02"
+  },
+  {
+   "in": "0001-01-01",
+   "ok": true,
+   "value": "0001-01-01"
+  },
+  {
+   "in": "0000-01-01",
+   "ok": false,
+   "errors": [
+    "Enter a valid date."
+   ]
+  },
+  {
+   "in": "10000-01-01",
+   "ok": false,
+   "errors": [
+    "Enter a valid date."
+   ]
+  },
+  {
+   "in": "abc",
+   "ok": false,
+   "errors": [
+    "Enter a valid date."
+   ]
+  },
+  {
+   "in": "12/31/68",
+   "ok": true,
+   "value": "2068-12-31"
+  },
+  {
+   "in": "12/31/69",
+   "ok": true,
+   "value": "1969-12-31"
+  },
+  {
+   "in": "Sept 2 2026",
+   "ok": false,
+   "errors": [
+    "Enter a valid date."
+   ]
+  },
+  {
+   "in": "Sep 2 2026",
+   "ok": true,
+   "value": "2026-09-02"
+  },
+  {
+   "in": "2026-13-01",
+   "ok": false,
+   "errors": [
+    "Enter a valid date."
+   ]
+  },
+  {
+   "in": "2026-12-32",
+   "ok": false,
+   "errors": [
+    "Enter a valid date."
+   ]
+  },
+  {
+   "in": "2026-02-29",
+   "ok": false,
+   "errors": [
+    "Enter a valid date."
+   ]
+  },
+  {
+   "in": "2024-02-29",
+   "ok": true,
+   "value": "2024-02-29"
+  },
+  {
+   "in": "1 1 2026",
+   "ok": false,
+   "errors": [
+    "Enter a valid date."
+   ]
+  }
+ ],
+ "time": [
+  {
+   "in": "",
+   "ok": true,
+   "value": "None"
+  },
+  {
+   "in": "10:20",
+   "ok": true,
+   "value": "10:20:00"
+  },
+  {
+   "in": "10:20:30",
+   "ok": true,
+   "value": "10:20:30"
+  },
+  {
+   "in": "10:20:30.123",
+   "ok": true,
+   "value": "10:20:30.123000"
+  },
+  {
+   "in": "10:20:30.1234567",
+   "ok": false,
+   "errors": [
+    "Enter a valid time."
+   ]
+  },
+  {
+   "in": "25:00",
+   "ok": false,
+   "errors": [
+    "Enter a valid time."
+   ]
+  },
+  {
+   "in": "10",
+   "ok": false,
+   "errors": [
+    "Enter a valid time."
+   ]
+  },
+  {
+   "in": "10:20 PM",
+   "ok": false,
+   "errors": [
+    "Enter a valid time."
+   ]
+  },
+  {
+   "in": "1:2:3",
+   "ok": true,
+   "value": "01:02:03"
+  },
+  {
+   "in": "23:59:60",
+   "ok": false,
+   "errors": [
+    "Enter a valid time."
+   ]
+  },
+  {
+   "in": "23:59:61",
+   "ok": false,
+   "errors": [
+    "Enter a valid time."
+   ]
+  },
+  {
+   "in": "abc",
+   "ok": false,
+   "errors": [
+    "Enter a valid time."
+   ]
+  },
+  {
+   "in": " 9:05 ",
+   "ok": true,
+   "value": "09:05:00"
+  }
+ ],
+ "int": [
+  {
+   "in": "",
+   "ok": true,
+   "value": "None"
+  },
+  {
+   "in": "5",
+   "ok": true,
+   "value": "5"
+  },
+  {
+   "in": " 7 ",
+   "ok": true,
+   "value": "7"
+  },
+  {
+   "in": "+3",
+   "ok": true,
+   "value": "3"
+  },
+  {
+   "in": "-1",
+   "ok": true,
+   "value": "-1"
+  },
+  {
+   "in": "0",
+   "ok": true,
+   "value": "0"
+  },
+  {
+   "in": "1_0",
+   "ok": true,
+   "value": "10"
+  },
+  {
+   "in": "5.0",
+   "ok": true,
+   "value": "5"
+  },
+  {
+   "in": "5.00 ",
+   "ok": true,
+   "value": "5"
+  },
+  {
+   "in": "5.5",
+   "ok": false,
+   "errors": [
+    "Enter a whole number."
+   ]
+  },
+  {
+   "in": "1e3",
+   "ok": false,
+   "errors": [
+    "Enter a whole number."
+   ]
+  },
+  {
+   "in": "abc",
+   "ok": false,
+   "errors": [
+    "Enter a whole number."
+   ]
+  },
+  {
+   "in": "٣",
+   "ok": true,
+   "value": "3"
+  },
+  {
+   "in": "99999999999999999999",
+   "ok": true,
+   "value": "99999999999999999999"
+  },
+  {
+   "in": "0x10",
+   "ok": false,
+   "errors": [
+    "Enter a whole number."
+   ]
+  },
+  {
+   "in": "1__0",
+   "ok": false,
+   "errors": [
+    "Enter a whole number."
+   ]
+  },
+  {
+   "in": "_1",
+   "ok": false,
+   "errors": [
+    "Enter a whole number."
+   ]
+  },
+  {
+   "in": "1_",
+   "ok": false,
+   "errors": [
+    "Enter a whole number."
+   ]
+  },
+  {
+   "in": "-",
+   "ok": false,
+   "errors": [
+    "Enter a whole number."
+   ]
+  },
+  {
+   "in": "+",
+   "ok": false,
+   "errors": [
+    "Enter a whole number."
+   ]
+  },
+  {
+   "in": " ",
+   "ok": false,
+   "errors": [
+    "Enter a whole number."
+   ]
+  }
+ ],
+ "decimal": [
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "",
+   "ok": true,
+   "value": "None"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "1",
+   "ok": true,
+   "value": "1"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "1.5",
+   "ok": true,
+   "value": "1.5"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": " 2.50 ",
+   "ok": true,
+   "value": "2.50"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "-1",
+   "ok": true,
+   "value": "-1"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "+3.25",
+   "ok": true,
+   "value": "3.25"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "1e2",
+   "ok": true,
+   "value": "1E+2"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "1E+2",
+   "ok": true,
+   "value": "1E+2"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "0.00001",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 4 decimal places."
+   ]
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "123456789012",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 10 digits in total."
+   ]
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "12345678901.12",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 10 digits in total."
+   ]
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "1.234",
+   "ok": true,
+   "value": "1.234"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": ".5",
+   "ok": true,
+   "value": "0.5"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "5.",
+   "ok": true,
+   "value": "5"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "abc",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "1_000",
+   "ok": true,
+   "value": "1000"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "inf",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "nan",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "-inf",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "1,5",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "٣.٥",
+   "ok": true,
+   "value": "3.5"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "0",
+   "ok": true,
+   "value": "0"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "-0",
+   "ok": true,
+   "value": "-0"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "00012.5",
+   "ok": true,
+   "value": "12.5"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "1e-3",
+   "ok": true,
+   "value": "0.001"
+  },
+  {
+   "max_digits": 10,
+   "places": 4,
+   "in": "1.50e1",
+   "ok": true,
+   "value": "15.0"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "",
+   "ok": true,
+   "value": "None"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "1",
+   "ok": true,
+   "value": "1"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "1.5",
+   "ok": true,
+   "value": "1.5"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": " 2.50 ",
+   "ok": true,
+   "value": "2.50"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "-1",
+   "ok": true,
+   "value": "-1"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "+3.25",
+   "ok": true,
+   "value": "3.25"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "1e2",
+   "ok": true,
+   "value": "1E+2"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "1E+2",
+   "ok": true,
+   "value": "1E+2"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "0.00001",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 2 decimal places."
+   ]
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "123456789012",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 10 digits before the decimal point."
+   ]
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "12345678901.12",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 12 digits in total."
+   ]
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "1.234",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 2 decimal places."
+   ]
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": ".5",
+   "ok": true,
+   "value": "0.5"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "5.",
+   "ok": true,
+   "value": "5"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "abc",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "1_000",
+   "ok": true,
+   "value": "1000"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "inf",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "nan",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "-inf",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "1,5",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "٣.٥",
+   "ok": true,
+   "value": "3.5"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "0",
+   "ok": true,
+   "value": "0"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "-0",
+   "ok": true,
+   "value": "-0"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "00012.5",
+   "ok": true,
+   "value": "12.5"
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "1e-3",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 2 decimal places."
+   ]
+  },
+  {
+   "max_digits": 12,
+   "places": 2,
+   "in": "1.50e1",
+   "ok": true,
+   "value": "15.0"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "",
+   "ok": true,
+   "value": "None"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "1",
+   "ok": true,
+   "value": "1"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "1.5",
+   "ok": true,
+   "value": "1.5"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": " 2.50 ",
+   "ok": true,
+   "value": "2.50"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "-1",
+   "ok": true,
+   "value": "-1"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "+3.25",
+   "ok": true,
+   "value": "3.25"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "1e2",
+   "ok": true,
+   "value": "1E+2"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "1E+2",
+   "ok": true,
+   "value": "1E+2"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "0.00001",
+   "ok": true,
+   "value": "0.00001"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "123456789012",
+   "ok": true,
+   "value": "123456789012"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "12345678901.12",
+   "ok": true,
+   "value": "12345678901.12"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "1.234",
+   "ok": true,
+   "value": "1.234"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": ".5",
+   "ok": true,
+   "value": "0.5"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "5.",
+   "ok": true,
+   "value": "5"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "abc",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "1_000",
+   "ok": true,
+   "value": "1000"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "inf",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "nan",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "-inf",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "1,5",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "٣.٥",
+   "ok": true,
+   "value": "3.5"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "0",
+   "ok": true,
+   "value": "0"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "-0",
+   "ok": true,
+   "value": "-0"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "00012.5",
+   "ok": true,
+   "value": "12.5"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "1e-3",
+   "ok": true,
+   "value": "0.001"
+  },
+  {
+   "max_digits": null,
+   "places": null,
+   "in": "1.50e1",
+   "ok": true,
+   "value": "15.0"
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "",
+   "ok": true,
+   "value": "None"
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "1",
+   "ok": true,
+   "value": "1"
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "1.5",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 0 decimal places."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": " 2.50 ",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 0 decimal places."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "-1",
+   "ok": true,
+   "value": "-1"
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "+3.25",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 0 decimal places."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "1e2",
+   "ok": true,
+   "value": "1E+2"
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "1E+2",
+   "ok": true,
+   "value": "1E+2"
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "0.00001",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 0 decimal places."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "123456789012",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 5 digits in total."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "12345678901.12",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 5 digits in total."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "1.234",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 0 decimal places."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": ".5",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 0 decimal places."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "5.",
+   "ok": true,
+   "value": "5"
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "abc",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "1_000",
+   "ok": true,
+   "value": "1000"
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "inf",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "nan",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "-inf",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "1,5",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "٣.٥",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 0 decimal places."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "0",
+   "ok": true,
+   "value": "0"
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "-0",
+   "ok": true,
+   "value": "-0"
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "00012.5",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 0 decimal places."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "1e-3",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 0 decimal places."
+   ]
+  },
+  {
+   "max_digits": 5,
+   "places": 0,
+   "in": "1.50e1",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 0 decimal places."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "",
+   "ok": true,
+   "value": "None"
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "1",
+   "ok": true,
+   "value": "1"
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "1.5",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": " 2.50 ",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "-1",
+   "ok": true,
+   "value": "-1"
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "+3.25",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "1e2",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "1E+2",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "0.00001",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "123456789012",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "12345678901.12",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "1.234",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": ".5",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 0 decimal places."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "5.",
+   "ok": true,
+   "value": "5"
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "abc",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "1_000",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "inf",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "nan",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "-inf",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "1,5",
+   "ok": false,
+   "errors": [
+    "Enter a number."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "٣.٥",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "0",
+   "ok": true,
+   "value": "0"
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "-0",
+   "ok": true,
+   "value": "-0"
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "00012.5",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "1e-3",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  },
+  {
+   "max_digits": 1,
+   "places": 0,
+   "in": "1.50e1",
+   "ok": false,
+   "errors": [
+    "Ensure that there are no more than 1 digit in total."
+   ]
+  }
+ ],
+ "email": [
+  {
+   "in": "",
+   "ok": false
+  },
+  {
+   "in": "a@b.co",
+   "ok": true
+  },
+  {
+   "in": "a@b",
+   "ok": false
+  },
+  {
+   "in": "a@localhost",
+   "ok": true
+  },
+  {
+   "in": "a b@c.com",
+   "ok": false
+  },
+  {
+   "in": "@x.com",
+   "ok": false
+  },
+  {
+   "in": "x@y..com",
+   "ok": false
+  },
+  {
+   "in": "x@[1.2.3.4]",
+   "ok": true
+  },
+  {
+   "in": "x@[1.2.3]",
+   "ok": false
+  },
+  {
+   "in": "x@bücher.de",
+   "ok": true
+  },
+  {
+   "in": "very.long.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.com",
+   "ok": true
+  },
+  {
+   "in": "ok+tag@example.org",
+   "ok": true
+  },
+  {
+   "in": "a@b.c-",
+   "ok": false
+  },
+  {
+   "in": "a@-b.com",
+   "ok": false
+  },
+  {
+   "in": "\"quoted user\"@example.com",
+   "ok": false
+  },
+  {
+   "in": "a@b.c",
+   "ok": false
+  },
+  {
+   "in": "a@b.com.",
+   "ok": false
+  },
+  {
+   "in": "A@B.COM",
+   "ok": true
+  },
+  {
+   "in": "x@xn--bcher-kva.de",
+   "ok": true
+  },
+  {
+   "in": "日本@example.com",
+   "ok": false
+  },
+  {
+   "in": "a@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.com",
+   "ok": false
+  },
+  {
+   "in": "x@[IPv6:::1]",
+   "ok": false
+  },
+  {
+   "in": "x@[::1]",
+   "ok": true
+  }
+ ],
+ "media": [
+  {
+   "lists": [
+    [
+     "a",
+     "b",
+     "c"
+    ],
+    [
+     "a",
+     "c"
+    ]
+   ],
+   "out": [
+    "a",
+    "b",
+    "c"
+   ]
+  },
+  {
+   "lists": [
+    [
+     "j",
+     "ji",
+     "core",
+     "rel",
+     "act"
+    ],
+    [
+     "cal",
+     "dts"
+    ],
+    [
+     "j",
+     "ji",
+     "inl"
+    ]
+   ],
+   "out": [
+    "j",
+    "cal",
+    "ji",
+    "dts",
+    "core",
+    "inl",
+    "rel",
+    "act"
+   ]
+  },
+  {
+   "lists": [
+    [
+     "a",
+     "b"
+    ],
+    [
+     "b",
+     "a"
+    ]
+   ],
+   "out": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "lists": [
+    [
+     "x"
+    ],
+    [
+     "y"
+    ],
+    [
+     "x",
+     "z"
+    ]
+   ],
+   "out": [
+    "x",
+    "y",
+    "z"
+   ]
+  },
+  {
+   "lists": [
+    [
+     "jq",
+     "init",
+     "core",
+     "rel",
+     "actions",
+     "urlify",
+     "prepop",
+     "xreg"
+    ],
+    [
+     "jq",
+     "s2",
+     "en",
+     "init",
+     "ac"
+    ],
+    [
+     "jq",
+     "init",
+     "inl"
+    ],
+    [
+     "core",
+     "sb",
+     "sf"
+    ]
+   ],
+   "out": [
+    "jq",
+    "s2",
+    "en",
+    "init",
+    "core",
+    "ac",
+    "inl",
+    "rel",
+    "sb",
+    "actions",
+    "sf",
+    "urlify",
+    "prepop",
+    "xreg"
+   ]
+  }
+ ],
+ "json_dump": [
+  {
+   "in": "{\"a\":1,\"b\":[1,2,3]}",
+   "out": "{\"a\": 1, \"b\": [1, 2, 3]}"
+  },
+  {
+   "in": "[1,2.5,1e5,-0.0,true,null,\"é\\n\"]",
+   "out": "[1, 2.5, 100000.0, -0.0, true, null, \"é\\n\"]"
+  },
+  {
+   "in": "{\"z\": {\"y\": []}}",
+   "out": "{\"z\": {\"y\": []}}"
+  },
+  {
+   "in": "  [ ]  ",
+   "out": "[]"
+  },
+  {
+   "in": "{bad",
+   "out": null
+  },
+  {
+   "in": "",
+   "out": null
+  },
+  {
+   "in": "1",
+   "out": "1"
+  },
+  {
+   "in": "\"s\"",
+   "out": "\"s\""
+  },
+  {
+   "in": "1.0",
+   "out": "1.0"
+  },
+  {
+   "in": "12345678901234567890",
+   "out": "12345678901234567890"
+  },
+  {
+   "in": "{\"a\":1}{\"b\":2}",
+   "out": null
+  },
+  {
+   "in": "[1,]",
+   "out": null
+  }
+ ]
+}

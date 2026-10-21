@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"math/big"
+	"net"
 	"regexp"
 	"strconv"
 	"strings"
@@ -438,17 +439,10 @@ func validEmail(v string) bool {
 }
 
 func validIP(s string) bool {
-	parts := strings.Split(s, ".")
-	if len(parts) == 4 {
-		for _, p := range parts {
-			n, err := strconv.Atoi(p)
-			if err != nil || n < 0 || n > 255 || p == "" {
-				return false
-			}
-		}
-		return true
+	if s == "" || strings.Trim(s, "0123456789abcdefABCDEF:.") != "" {
+		return false
 	}
-	return strings.Contains(s, ":") && !strings.ContainsAny(s, " ")
+	return net.ParseIP(s) != nil
 }
 
 // asciiDigits turns other scripts' decimal digits into 0-9, as Python's number parsing does.
