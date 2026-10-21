@@ -26,5 +26,14 @@ func init() {
 			}
 			return p.ProcessDeedPDF(ctx, args.DeedID)
 		}
+		w.Handlers[jobs.KindSubmitDeed] = func(ctx context.Context, j jobs.Job) error {
+			var args struct {
+				DeedID int64 `json:"deed_id"`
+			}
+			if err := j.Decode(&args); err != nil {
+				return err
+			}
+			return p.SubmitDeedToPortal(ctx, args.DeedID)
+		}
 	}
 }

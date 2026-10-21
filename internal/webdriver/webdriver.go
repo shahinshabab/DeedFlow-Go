@@ -272,9 +272,16 @@ type Element struct {
 func encodeArgs(args []any) []any {
 	out := make([]any, len(args))
 	for i, a := range args {
-		if el, ok := a.(*Element); ok {
-			out[i] = map[string]string{elementKey: el.id}
-		} else {
+		switch x := a.(type) {
+		case *Element:
+			out[i] = map[string]string{elementKey: x.id}
+		case []string:
+			list := make([]any, len(x))
+			for j, v := range x {
+				list[j] = v
+			}
+			out[i] = list
+		default:
 			out[i] = a
 		}
 	}
@@ -388,6 +395,12 @@ func (e *Element) TagName(ctx context.Context) (string, error) {
 	return s, err
 }
 
+var booleanAttrs = map[string]bool{
+	"disabled": true, "readonly": true, "checked": true, "selected": true, "multiple": true, "required": true,
+	"hidden": true, "autofocus": true, "draggable": false, "async": true, "defer": true, "ismap": true,
+	"noresize": true, "nowrap": true, "novalidate": true, "open": true, "paused": true, "reversed": true,
+}
+
 // Attribute reads an attribute (or, failing that, the property), "" if unset,
 // like Selenium's get_attribute.
 func (e *Element) Attribute(ctx context.Context, name string) (string, error) {
@@ -399,6 +412,11 @@ func (e *Element) Attribute(ctx context.Context, name string) (string, error) {
 		case bool:
 			if x {
 				return "true", nil
+			}
+			// Selenium reports a false boolean attribute (disabled, readonly,
+			// checked ...) as None, not "false".
+			if booleanAttrs[strings.ToLower(name)] {
+				return "", nil
 			}
 			return "false", nil
 		case float64:

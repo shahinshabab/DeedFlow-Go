@@ -6,16 +6,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
+	"github.com/shahinshabab/deedflow-go/internal/media"
 	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -513,46 +511,10 @@ func (a *App) staticHandler() http.Handler {
 
 // MediaPath resolves a stored media name to a file path, refusing anything
 // outside MEDIA_ROOT.
-func (a *App) MediaPath(name string) (string, error) {
-	clean := filepath.Clean("/" + name)
-	full := filepath.Join(a.Cfg.MediaRoot, clean)
-	if !strings.HasPrefix(full, filepath.Clean(a.Cfg.MediaRoot)+string(filepath.Separator)) {
-		return "", errors.New("path outside media root")
-	}
-	return full, nil
-}
+func (a *App) MediaPath(name string) (string, error) { return media.Path(a.Cfg.MediaRoot, name) }
 
 // SaveMedia writes data to MEDIA_ROOT/name (creating directories), picking a
 // fresh name if one exists, and returns the stored name.
 func (a *App) SaveMedia(name string, data []byte) (string, error) {
-	dir, base := path.Split(name)
-	ext := path.Ext(base)
-	stem := strings.TrimSuffix(base, ext)
-	candidate := name
-	for i := 0; ; i++ {
-		full, err := a.MediaPath(candidate)
-		if err != nil {
-			return "", err
-		}
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			return "", err
-		}
-		f, err := os.OpenFile(full, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-		if err == nil {
-			_, werr := f.Write(data)
-			cerr := f.Close()
-			if werr != nil {
-				return "", werr
-			}
-			return candidate, cerr
-		}
-		if !os.IsExist(err) {
-			return "", err
-		}
-		suffix := fmt.Sprintf("_%s", randomSuffix(7))
-		candidate = dir + stem + suffix + ext
-		if i > 20 {
-			return "", errors.New("could not find a free file name")
-		}
-	}
+	return media.Save(a.Cfg.MediaRoot, name, data)
 }

@@ -41,6 +41,8 @@ type Env struct {
 	Hub   *events.Hub
 	AI    *ai.Client
 	Loc   *time.Location
+	// NewPortal starts a portal browser; nil means the real one (tests inject a stand-in).
+	NewPortal PortalFactory
 }
 
 // GroupFor is the event group of a deed's live status.
