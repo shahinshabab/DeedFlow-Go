@@ -48,6 +48,9 @@ var standardFontMarkers = []string{
 	"cambria", "georgia", "tahoma", "segoe", "roman", "consolas",
 }
 
+// IsStandardLatinFont reports whether a font name is one of the standard Latin families.
+func IsStandardLatinFont(fontname string) bool { return isStandardLatinFont(fontname) }
+
 func isStandardLatinFont(fontname string) bool {
 	name := strings.ToLower(fontname)
 	for _, m := range standardFontMarkers {
