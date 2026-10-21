@@ -10,7 +10,6 @@ func (a *App) routes() {
 	a.registerDeeds()
 	a.registerLedger()
 	a.registerFilereader()
-	// Admin entry point for the sidebar link (the admin area itself lives in admin.go).
-	a.Route("admin:index", "admin/", a.StaffRequired(func(c *Ctx) { c.Render("admin/index.html", nil) }))
+	a.registerAdmin()
 	_ = http.StatusOK
 }

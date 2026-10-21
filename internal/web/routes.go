@@ -55,9 +55,10 @@ func (rt *Router) Handle(name, path string, h http.Handler) {
 // more specific, like "accounts/payments/<int:pk>/" and
 // "accounts/<str:token>/receipts/").
 type orderedRoute struct {
-	re *regexp.Regexp
-	h  http.Handler
-	n  []string
+	re       *regexp.Regexp
+	h        http.Handler
+	n        []string
+	catchAll bool
 }
 
 var converterRegex = map[string]string{"int": `[0-9]+`, "uuid": `[0-9a-fA-F-]{36}`, "str": `[^/]+`, "slug": `[-a-zA-Z0-9_]+`, "path": `.+`}
@@ -92,7 +93,8 @@ func (rt *Router) HandleOrdered(name, path string, h http.Handler) {
 	if i := strings.Index(prefix, "/"); i >= 0 {
 		prefix = prefix[:i+1]
 	}
-	rt.ordered[prefix] = append(rt.ordered[prefix], orderedRoute{re: regexp.MustCompile(re.String()), h: h, n: names})
+	rt.ordered[prefix] = append(rt.ordered[prefix], orderedRoute{re: regexp.MustCompile(re.String()), h: h, n: names,
+		catchAll: strings.HasSuffix(name, "catch_all")})
 }
 
 // MountOrdered serves the routes registered with HandleOrdered under prefix
@@ -158,6 +160,23 @@ func (rt *Router) ReverseKw(name string, kwargs map[string]any) (string, error) 
 		args[i] = v
 	}
 	return rt.Reverse(name, args...)
+}
+
+// Resolves reports whether an ordered route (other than a catch-all) matches the path.
+func (rt *Router) Resolves(path string) bool {
+	rt.mu.RLock()
+	defer rt.mu.RUnlock()
+	for _, routes := range rt.ordered {
+		for _, o := range routes {
+			if o.catchAll {
+				continue
+			}
+			if o.re.MatchString(path) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ServeHTTP dispatches to the registered handlers.

@@ -51,6 +51,10 @@ func (rootLoader) Abs(base, name string) string { return name }
 // loopVars maps Django's forloop attributes to pongo2's capitalised ones.
 var loopVars = regexp.MustCompile(`forloop\.(counter0|counter|first|last|revcounter0|revcounter)\b`)
 
+// blockSuper is Django's {{ block.super }}; gettextCall its _('text') in expressions.
+var blockSuper = regexp.MustCompile(`block\.super\b`)
+var gettextCall = regexp.MustCompile(`\b_\(['"]([^'"]*)['"]\)`)
+
 var loopVarNames = map[string]string{"counter0": "Counter0", "counter": "Counter", "first": "First", "last": "Last",
 	"revcounter0": "Revcounter0", "revcounter": "Revcounter"}
 
@@ -68,6 +72,8 @@ func (l rootLoader) Get(path string) (io.Reader, error) {
 	data = loopVars.ReplaceAllFunc(data, func(m []byte) []byte {
 		return []byte("forloop." + loopVarNames[string(m[len("forloop."):])])
 	})
+	data = blockSuper.ReplaceAll(data, []byte("block.Super"))
+	data = gettextCall.ReplaceAll(data, []byte(`"$1"`))
 	return bytes.NewReader(data), nil
 }
 
@@ -351,6 +357,15 @@ func (c *Ctx) RenderStatus(status int, name string, data Data) {
 	}
 	for k, v := range data {
 		ctx[k] = v
+	}
+	c.renderContext(status, name, ctx)
+}
+
+// renderContext executes a template with exactly the given context (plus the
+// CSRF token) and writes the page.
+func (c *Ctx) renderContext(status int, name string, ctx pongo2.Context) {
+	if _, ok := ctx["csrf_token"]; !ok {
+		ctx["csrf_token"] = c.csrfToken
 	}
 	tpl, err := c.App.tpl.set.FromFile(name)
 	if err != nil {
