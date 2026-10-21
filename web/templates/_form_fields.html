@@ -1,0 +1,27 @@
+<div class="row g-3">
+  {% for field in form.visible_fields %}
+    {% if field.name != "DELETE" %}
+    {# A form can list specific field names in FULL_WIDTH_FIELDS (e.g. the schedule's details/boundary_* textareas) to span the whole row instead of sharing it at the step's usual column width. #}
+    <div class="field {% if field.name in form.FULL_WIDTH_FIELDS %}col-12{% else %}{{ col_width|default:'col-md-6' }}{% endif %}{% if field.errors %} has-error{% endif %}">
+      {% if field.widget_type == "checkbox" %}
+      {# A switch with its label beside it: a bare checkbox under a label was too faint to notice. #}
+      <div class="form-check form-switch field-switch">
+        {{ field.html|safe }}
+        <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+      </div>
+      {% else %}
+      <label class="form-label" for="{{ field.id_for_label }}">
+        {{ field.label }}{% if field.field.required %}<span class="req" aria-hidden="true">*</span>{% endif %}
+      </label>
+      {{ field.html|safe }}
+      {% endif %}
+      {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+      {% for error in field.errors %}<div class="field-error"><i class="bi bi-exclamation-circle"></i><span>{{ error }}</span></div>{% endfor %}
+    </div>
+    {% endif %}
+  {% endfor %}
+  {% for hidden in form.hidden_fields %}{{ hidden.html|safe }}{% endfor %}
+</div>
+{% if form.non_field_errors %}
+  <div class="alert alert-danger py-2 mt-3 mb-0"><i class="alert-icon bi bi-exclamation-octagon-fill"></i><div><ul class="errorlist nonfield">{% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul></div></div>
+{% endif %}

@@ -1,0 +1,175 @@
+{% load static legacy_fonts %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1c6e4a">
+  <title>{% block title %}DeedFlow{% endblock %} · DeedFlow</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="{% static 'core/deedflow.css' %}">
+  {% legacy_font_faces %}
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+{% if user.is_authenticated %}
+  <aside id="sidebar" class="app-sidebar" aria-label="Main navigation">
+    <a class="brand" href="{% url 'core:dashboard' %}">
+      <span class="brand-mark"><i class="bi bi-file-earmark-check"></i></span>
+      DeedFlow
+    </a>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Workspace</div>
+      <a class="nav-link {% if view_name == 'core:dashboard' %}active{% endif %}" href="{% url 'core:dashboard' %}">
+        <i class="bi bi-grid-1x2"></i> Dashboard
+      </a>
+      <a class="nav-link {% if view_name == 'deeds:my_deeds' or view_name == 'deeds:detail' or view_name == 'deeds:wizard' or view_name == 'deeds:submitting' or view_name == 'deeds:processing' %}active{% endif %}" href="{% url 'deeds:my_deeds' %}">
+        <i class="bi bi-folder2-open"></i> My Deeds
+      </a>
+      <a class="nav-link" href="#newDeedMenu" data-bs-toggle="collapse"
+         role="button" aria-expanded="{% if view_name == 'deeds:upload' %}true{% else %}false{% endif %}" aria-controls="newDeedMenu">
+        <i class="bi bi-file-earmark-plus"></i> New deed <i class="bi bi-chevron-down ms-auto small"></i>
+      </a>
+      <div class="collapse nav-sub {% if view_name == 'deeds:upload' %}show{% endif %}" id="newDeedMenu">
+        <a class="nav-link {% if view_name == 'deeds:upload' and mode != 'existing' %}active{% endif %}" href="{% url 'deeds:upload' %}?mode=fresh">
+          <i class="bi bi-plus-circle"></i> Fresh
+        </a>
+        <a class="nav-link {% if view_name == 'deeds:upload' and mode == 'existing' %}active{% endif %}" href="{% url 'deeds:upload' %}?mode=existing">
+          <i class="bi bi-arrow-repeat"></i> Continue with existing token
+        </a>
+      </div>
+      <a class="nav-link {% if view_name == 'filereader:index' %}active{% endif %}" href="{% url 'filereader:index' %}">
+        <i class="bi bi-file-earmark-richtext"></i> File reader
+      </a>
+      <a class="nav-link {% if 'filereader:filing' in view_name %}active{% endif %}" href="{% url 'filereader:filing' %}">
+        <i class="bi bi-journal-richtext"></i> Filing sheets
+      </a>
+      {% with in_accounts=view_name|slice:":7" %}
+      <a class="nav-link" href="#accountsMenu" data-bs-toggle="collapse"
+         role="button" aria-expanded="{% if in_accounts == 'ledger:' %}true{% else %}false{% endif %}" aria-controls="accountsMenu">
+        <i class="bi bi-journal-text"></i> Accounts <i class="bi bi-chevron-down ms-auto small"></i>
+      </a>
+      <div class="collapse nav-sub {% if in_accounts == 'ledger:' %}show{% endif %}" id="accountsMenu">
+        <a class="nav-link {% if view_name == 'ledger:list' or view_name == 'ledger:receipts' %}active{% endif %}" href="{% url 'ledger:list' %}">
+          <i class="bi bi-receipt"></i> Receipts
+        </a>
+        <a class="nav-link {% if view_name == 'ledger:payments' or view_name == 'ledger:payment_add' or view_name == 'ledger:payment_edit' %}active{% endif %}" href="{% url 'ledger:payments' %}">
+          <i class="bi bi-wallet2"></i> Payments
+        </a>
+      </div>
+      {% endwith %}
+
+      {% if is_org_admin %}
+      <div class="nav-section-label">Test area</div>
+      <a class="nav-link {% if view_name == 'deeds:test_dashboard' %}active{% endif %}" href="{% url 'deeds:test_dashboard' %}">
+        <i class="bi bi-speedometer2"></i> Test Dashboard
+      </a>
+      <a class="nav-link {% if view_name == 'deeds:pdf_test' %}active{% endif %}" href="{% url 'deeds:pdf_test' %}">
+        <i class="bi bi-file-earmark-text"></i> PDF Test
+      </a>
+      <a class="nav-link {% if view_name == 'deeds:ai_test' %}active{% endif %}" href="{% url 'deeds:ai_test' %}">
+        <i class="bi bi-stars"></i> AI Test
+      </a>
+      <a class="nav-link" href="{% url 'deeds:selenium_test' %}">
+        <i class="bi bi-robot"></i> Selenium Test
+      </a>
+      {% endif %}
+
+      <div class="nav-section-label">Account</div>
+      <a class="nav-link {% if view_name == 'accounts:profile' %}active{% endif %}" href="{% url 'accounts:profile' %}">
+        <i class="bi bi-person-gear"></i> Profile
+      </a>
+      {% if is_org_admin %}
+      <a class="nav-link {% if view_name == 'accounts:organization' or view_name == 'accounts:staff_password' %}active{% endif %}" href="{% url 'accounts:organization' %}">
+        <i class="bi bi-building"></i> Organization
+      </a>
+      {% endif %}
+      {% if user.is_staff %}
+      <a class="nav-link" href="{% url 'admin:index' %}">
+        <i class="bi bi-shield-lock"></i> Admin
+      </a>
+      {% endif %}
+    </nav>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  <header class="app-topbar">
+    <button class="btn btn-outline-secondary btn-icon d-lg-none" type="button" id="sidebarToggle" aria-label="Open menu" aria-controls="sidebar">
+      <i class="bi bi-list fs-5"></i>
+    </button>
+    <a class="topbar-brand" href="{% url 'core:dashboard' %}">
+      <span class="brand-mark" style="background: var(--brand); width: 28px; height: 28px; font-size: .9rem;"><i class="bi bi-file-earmark-check"></i></span>
+      DeedFlow
+    </a>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <a href="{% url 'deeds:my_deeds' %}" class="btn btn-outline-secondary btn-sm d-none d-md-inline-flex">
+        <i class="bi bi-folder2-open"></i> My Deeds
+      </a>
+      <div class="dropdown">
+        <button class="user-menu-btn" type="button" id="profileMenuToggle" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account menu">
+          <span class="avatar">{% if user.first_name %}{{ user.first_name|first }}{{ user.last_name|first }}{% else %}{{ user.username|slice:":2" }}{% endif %}</span>
+          <span class="small fw-semibold d-none d-sm-inline">{{ user.get_full_name|default:user.username }}</span>
+          <i class="bi bi-chevron-down small text-muted d-none d-sm-inline"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileMenuToggle" style="min-width: 220px;">
+          <li><h6 class="dropdown-header">Signed in as <strong>{{ user.username }}</strong>{% if organization %}<br><span class="fw-normal">{{ organization.name }} · {% if is_org_admin %}Admin{% else %}Staff{% endif %}</span>{% endif %}</h6></li>
+          <li>
+            <a class="dropdown-item" href="{% url 'accounts:profile' %}">
+              <i class="bi bi-person-gear"></i>Profile
+            </a>
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <form action="{% url 'logout' %}" method="post" class="m-0">
+              {% csrf_token %}
+              <button type="submit" class="dropdown-item text-danger">
+                <i class="bi bi-box-arrow-right"></i>Log out
+              </button>
+            </form>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <div class="app-container">
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+            <i class="alert-icon bi {% if message.tags == 'success' %}bi-check-circle-fill{% elif message.tags == 'error' or message.tags == 'danger' %}bi-exclamation-octagon-fill{% elif message.tags == 'warning' %}bi-exclamation-triangle-fill{% else %}bi-info-circle-fill{% endif %}"></i>
+            <div>{{ message.text }}</div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+{% else %}
+  {% block guest_content %}{% endblock %}
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script src="{% static 'core/shot-viewer.js' %}" defer></script>
+<script>
+  (function () {
+    var sidebar = document.getElementById('sidebar');
+    var toggle = document.getElementById('sidebarToggle');
+    var backdrop = document.getElementById('sidebarBackdrop');
+    if (!sidebar || !toggle) return;
+    function setOpen(open) {
+      sidebar.classList.toggle('show', open);
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    toggle.addEventListener('click', function () { setOpen(!sidebar.classList.contains('show')); });
+    if (backdrop) backdrop.addEventListener('click', function () { setOpen(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
+  })();
+</script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

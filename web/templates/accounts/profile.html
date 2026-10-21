@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}My Profile{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>My Profile</h1>
+    <p class="page-subtitle">Your DeedFlow account and sign-in details.</p>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <span class="avatar" style="width: 56px; height: 56px; font-size: 1.15rem;">{% if user.first_name %}{{ user.first_name|first }}{{ user.last_name|first }}{% else %}{{ user.username|slice:":2" }}{% endif %}</span>
+          <div>
+            <div class="fw-semibold fs-5">{{ user.get_full_name|default:user.username }}</div>
+            <div class="text-muted small">@{{ user.username }}</div>
+          </div>
+        </div>
+        <dl class="kv">
+          <dt>Username</dt><dd>{{ user.username }}</dd>
+          {% if user.get_full_name %}<dt>Name</dt><dd>{{ user.get_full_name }}</dd>{% endif %}
+          {% if organization %}<dt>Organization</dt><dd>{{ organization.name }}</dd>
+          <dt>Role</dt><dd>{% if is_org_admin %}Admin{% else %}Staff{% endif %}</dd>{% endif %}
+        </dl>
+        <hr>
+        <div class="d-flex gap-2 align-items-start small text-muted">
+          <i class="bi bi-key mt-1"></i>
+          {% if is_org_admin %}
+            <span>Your organization's Registration Department portal login is on the
+            <a href="{% url 'accounts:organization' %}">Organization</a> page.</span>
+          {% else %}
+            <span>Deeds are submitted with your organization's portal login, which its admin manages.</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-shield-lock text-brand"></i> Change website password</div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">This is your login for DeedFlow itself, not the Registration Department portal.</p>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% include "_form_fields.html" with form=password_form col_width="col-12" %}
+          <button type="submit" name="change_password" class="btn btn-brand mt-4">Update password</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

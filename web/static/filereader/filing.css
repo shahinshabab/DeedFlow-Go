@@ -1,0 +1,103 @@
+/* Filing sheet: the deed's text written out on ruled pages. Every length
+   comes from the toolbar through the --fs-* custom properties filing.js
+   sets on the page root. */
+.fs-upload { display: flex; gap: .75rem; align-items: stretch; flex-wrap: wrap; }
+
+.fs-toolbar {
+  position: sticky; top: calc(var(--topbar-h) + .5rem); z-index: 5;
+  padding: .6rem .9rem; margin-bottom: 1rem; display: flex; flex-direction: column; gap: .5rem;
+}
+.fs-toolbar-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.fs-file { display: flex; flex-direction: column; min-width: 0; }
+.fs-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.fs-settings { display: flex; flex-direction: column; gap: .4rem; }
+.fs-group { display: flex; gap: .5rem .75rem; align-items: center; flex-wrap: wrap; border: 0; margin: 0; padding: 0; min-width: 0; }
+.fs-group legend {
+  float: left; width: 7.5rem; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--ink-3); margin: 0; padding: 0;
+}
+.fs-group label { display: flex; align-items: center; font-size: .75rem; color: var(--ink-3); gap: .3rem; margin: 0; }
+.fs-group input[type=number] { width: 4.2rem; }
+.fs-group select { width: auto; }
+.fs-group .fs-check .form-check-input { margin: 0; }
+.fs-group input[readonly] { background: var(--bs-secondary-bg, #f1f3f2); }
+
+/* The pages sit side by side, each one a column of the same text. */
+.fs-desk { overflow: auto; padding: .25rem .25rem 2rem; }
+.fs-scaler { position: relative; transform-origin: top left; }
+.fs-strip { position: relative; }
+.fs-page {
+  position: absolute; top: 0; width: var(--fs-paper-w); height: var(--fs-paper-h);
+  background: #fff; box-shadow: var(--shadow); outline: 1px solid var(--line); overflow: hidden;
+}
+.fs-page-no { position: absolute; right: 4mm; bottom: 3mm; font: 2.6mm/1 system-ui, sans-serif; color: #9aa7a0; }
+/* The ruled lines always show on screen; they print only when asked. */
+.fs-rules { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.fs-rules line { stroke-width: .3; }
+/* Viewing shows the sheet as it prints: no lines unless they print. */
+.fs-no-rules .fs-rules { display: none; }
+.fs-content {
+  position: absolute; left: var(--fs-c-left); top: calc(var(--fs-c-top) + var(--fs-shift));
+  /* Room for every line but the last, and half a line to spare. The
+     browser rounds lengths, more so in a zoomed view, and without the spare
+     a page's lines can add up to a hair more than its room, so its last
+     line moves to the next page and leaves two blank. A half line can
+     never hold a line of text. */
+  width: var(--fs-col-w); height: calc((var(--fs-lines) - 0.5) * var(--fs-gap));
+  column-width: var(--fs-col-w); column-gap: var(--fs-col-gap); column-fill: auto;
+  font-family: var(--fs-font); font-size: var(--fs-size); line-height: var(--fs-gap);
+  color: #000; outline: none; overflow-wrap: break-word; -webkit-font-smoothing: antialiased;
+}
+/* The first page leaves its first line blank. */
+.fs-content::before { content: ""; display: block; height: var(--fs-gap); }
+.fs-content p { margin: 0; }
+/* Every line is used: a page doesn't stop a line early to keep two lines
+   of a paragraph together, the way books do. */
+.fs-content, .fs-content * { orphans: 1; widows: 1; }
+/* Running text fills each line; table cells keep their own alignment. */
+.fs-content > p { text-align: justify; }
+/* Lines stay exactly one gap apart, whatever font a word is in. */
+.fs-content :is(span, b, i) { line-height: 0; }
+/* Latin words in a legacy-font sheet: that font would draw them as Malayalam. */
+.fs-latin { font-family: "Times New Roman", Times, serif; }
+
+/* Tables keep their columns, with lines only between the columns after
+   the serial number. */
+.fs-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0; }
+.fs-table td { border: 0; vertical-align: top; padding: 0 .3em; }
+.fs-table td.fs-vline { border-left: .75pt solid #000; }
+
+/* Lines drawn on the pages, as thick as the tables' lines. Each is a strip
+   a few mm wide to catch with the mouse, with the line as a border down
+   its middle. */
+.fs-drawn { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.fs-drawn.fs-drawing { pointer-events: auto; cursor: crosshair; }
+.fs-drawn.fs-dragging { pointer-events: auto; }
+.fs-dl { position: absolute; pointer-events: auto; cursor: move; touch-action: none; }
+.fs-drawn-view .fs-dl { pointer-events: none; }
+.fs-dl::after { content: ""; position: absolute; border: 0 solid #000; }
+.fs-dl-h { height: 3mm; margin-top: -1.5mm; }
+.fs-dl-h::after { left: 0; right: 0; top: calc(1.5mm - .375pt); border-top-width: .75pt; }
+.fs-dl-v { width: 3mm; margin-left: -1.5mm; }
+.fs-dl-v::after { top: 0; bottom: 0; left: calc(1.5mm - .375pt); border-left-width: .75pt; }
+.fs-dl-sel::after { border-color: #1a73e8; }
+.fs-dh { position: absolute; width: 2.4mm; height: 2.4mm; background: #fff; border: .3mm solid #1a73e8; border-radius: 50%; }
+.fs-dl-h .fs-dh { top: .3mm; cursor: ew-resize; }
+.fs-dl-h .fs-dh-start { left: -1.2mm; }
+.fs-dl-h .fs-dh-end { right: -1.2mm; }
+.fs-dl-v .fs-dh { left: .3mm; cursor: ns-resize; }
+.fs-dl-v .fs-dh-start { top: -1.2mm; }
+.fs-dl-v .fs-dh-end { bottom: -1.2mm; }
+#fsDraw.active { background: var(--bs-secondary-bg, #e9ecef); }
+
+.fs-print { display: none; }
+
+@media print {
+  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+  .fs-noprint, .app-sidebar, .app-topbar, .sidebar-backdrop, .alert, .page-header, .card { display: none !important; }
+  .app-main, .app-container { margin: 0 !important; padding: 0 !important; max-width: none !important; }
+  .fs-print { display: block; }
+  .fs-print .fs-page { position: relative; box-shadow: none; outline: 0; break-after: page; }
+  .fs-print .fs-page:last-child { break-after: auto; }
+  .fs-print .fs-page-no { display: none; }
+}

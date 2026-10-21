@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Organization{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="eyebrow">Organization</div>
+    <h1 class="mt-1">{{ org.name }}</h1>
+    <p class="page-subtitle">Only you, as the admin, can see this page. Staff create and edit deeds; every deed is submitted with the portal login below.</p>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-key text-brand"></i> Portal login</div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          The Registration Department portal account all your staff submit with. Staff never see it.
+          {% if not has_portal_login %}<strong class="text-danger">Not set yet: nobody can submit until it is.</strong>{% endif %}
+        </p>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="action" value="portal">
+          {% include "_form_fields.html" with form=portal_form col_width="col-12" %}
+          <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-brand">Save portal login</button>
+            <button type="button" class="btn btn-outline-secondary" id="togglePortalPassword">
+              <i class="bi bi-eye"></i> <span>Show password</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="bi bi-building text-brand"></i> Name</div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="action" value="rename">
+          {% include "_form_fields.html" with form=name_form col_width="col-12" %}
+          <button type="submit" class="btn btn-outline-brand mt-3">Save name</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card overflow-hidden mb-3">
+      <div class="card-header"><i class="bi bi-people text-brand"></i> Members</div>
+      <div class="table-responsive">
+        <table class="table align-middle table-stack mb-0">
+          <thead><tr><th>Name</th><th>Role</th><th class="text-end">Actions</th></tr></thead>
+          <tbody>
+            {% for member in members %}
+              <tr>
+                <td>
+                  <div class="cell-title">{{ member.user.get_full_name|default:member.user.username }}</div>
+                  <div class="cell-sub">Signs in as {{ member.user.username }}</div>
+                </td>
+                <td data-label="Role">
+                  {% if member.is_admin %}
+                    <span class="status-pill s-completed">Admin</span>
+                  {% elif member.user.is_active %}
+                    <span class="status-pill s-ready_for_review">Staff</span>
+                  {% else %}
+                    <span class="status-pill s-draft">Staff · turned off</span>
+                  {% endif %}
+                </td>
+                <td class="text-end text-nowrap cell-actions">
+                  {% if not member.is_admin %}
+                    <a href="{% url 'accounts:staff_password' member.user.id %}" class="btn btn-sm btn-outline-secondary">
+                      <i class="bi bi-shield-lock"></i> Password
+                    </a>
+                    <form method="post" action="{% url 'accounts:staff_toggle_active' member.user.id %}" class="d-inline">
+                      {% csrf_token %}
+                      {% if member.user.is_active %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                onclick="return confirm('Stop {{ member.user.get_full_name|default:member.user.username|escapejs }} from signing in? Their deeds stay with the organization.');">
+                          <i class="bi bi-person-x"></i> Turn off
+                        </button>
+                      {% else %}
+                        <button type="submit" class="btn btn-sm btn-outline-brand"><i class="bi bi-person-check"></i> Turn on</button>
+                      {% endif %}
+                    </form>
+                  {% else %}
+                    <span class="text-muted small">You</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="bi bi-person-plus text-brand"></i> Add staff</div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">Staff can start new deeds, edit deeds and submit them. They can't see the portal login or the Test area.</p>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add_staff">
+          {% include "_form_fields.html" with form=staff_form col_width="col-md-4" %}
+          <button type="submit" class="btn btn-brand mt-4"><i class="bi bi-person-plus"></i> Add staff member</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  (function () {
+    var button = document.getElementById('togglePortalPassword');
+    var input = document.getElementById('id_portal-password');
+    if (!button || !input) return;
+    button.addEventListener('click', function () {
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      button.querySelector('span').textContent = show ? 'Hide password' : 'Show password';
+      button.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+    });
+  })();
+</script>
+{% endblock %}

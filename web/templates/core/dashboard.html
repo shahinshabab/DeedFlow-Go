@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="eyebrow">Dashboard</div>
+    <h1 class="mt-1">Welcome, {{ user.first_name|default:user.username }}</h1>
+    <p class="page-subtitle">Start a new deed or pick up where you left off.</p>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6 col-xl-4">
+    <a href="{% url 'deeds:upload' %}" class="action-card featured">
+      <span class="icon-tile"><i class="bi bi-file-earmark-arrow-up"></i></span>
+      <i class="bi bi-arrow-right go fs-5"></i>
+      <h2>New deed from PDF <span class="tag">Fastest</span></h2>
+      <p>Upload the deed PDF and DeedFlow extracts every section for you to review.</p>
+    </a>
+  </div>
+  <div class="col-md-6 col-xl-4">
+    <a href="{% url 'deeds:create' %}" class="action-card">
+      <span class="icon-tile"><i class="bi bi-file-earmark-plus"></i></span>
+      <i class="bi bi-arrow-right go fs-5"></i>
+      <h2>New blank deed</h2>
+      <p>Walk through the seven steps and enter the details by hand.</p>
+    </a>
+  </div>
+  <div class="col-md-12 col-xl-4">
+    <a href="{% url 'deeds:my_deeds' %}" class="action-card">
+      <span class="icon-tile"><i class="bi bi-folder2-open"></i></span>
+      <i class="bi bi-arrow-right go fs-5"></i>
+      <h2>My deeds</h2>
+      <p>Search, review, edit and submit the deeds you've already started.</p>
+    </a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h2 class="section-title mb-3">How it works</h2>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <span class="num">1</span>
+        <div><strong>Upload or start blank</strong><span>Drop in the deed PDF, or create an empty deed.</span></div>
+      </div>
+      <div class="flow-step">
+        <span class="num">2</span>
+        <div><strong>Review each step</strong><span>Check registration, parties, schedule and witnesses.</span></div>
+      </div>
+      <div class="flow-step">
+        <span class="num">3</span>
+        <div><strong>Submit to the portal</strong><span>Watch live progress and screenshots as it's filed.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

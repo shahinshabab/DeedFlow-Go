@@ -1,0 +1,51 @@
+/* File reader: pages drawn at their real size (CSS points), then scaled to fit. */
+.fr-upload { display: flex; gap: .75rem; align-items: stretch; flex-wrap: wrap; }
+.fr-upload-actions { display: flex; flex-direction: column; gap: .5rem; align-self: center; }
+
+.fr-toolbar {
+  position: sticky; top: calc(var(--topbar-h) + .5rem); z-index: 5;
+  display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap;
+  padding: .6rem .9rem; margin-bottom: 1rem;
+}
+.fr-toolbar-info { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; text-align: left; }
+.fr-toolbar-actions { display: flex; gap: .5rem; align-items: center; }
+.fr-toolbar-actions .form-select { width: auto; }
+
+.fr-pages { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; padding-bottom: 2rem; overflow-x: auto; }
+.fr-page-wrap { display: flex; flex-direction: column; align-items: center; gap: .35rem; max-width: 100%; }
+.fr-page-label { font-size: .8rem; color: var(--ink-3); display: flex; gap: .75rem; align-items: center; }
+.fr-page-label button { border: 0; background: none; color: var(--brand); padding: 0; font-size: .8rem; }
+.fr-scaler { position: relative; }
+.fr-page {
+  position: absolute; top: 0; left: 0; transform-origin: top left;
+  background: #fff; color: #000; box-shadow: var(--shadow); outline: 1px solid var(--line);
+  overflow: hidden;
+  font-family: "Noto Serif Malayalam", "Noto Sans Malayalam", "Times New Roman", serif;
+  -webkit-font-smoothing: antialiased;
+}
+.fr-page svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.fr-frame { position: absolute; box-sizing: border-box; }
+.fr-flow { display: flow-root; height: 100%; transform-origin: top left; }
+.fr-frame.fr-valign-center .fr-flow, .fr-frame.fr-valign-bottom .fr-flow { display: flex; flex-direction: column; }
+.fr-frame.fr-valign-center .fr-flow { justify-content: center; }
+.fr-frame.fr-valign-bottom .fr-flow { justify-content: flex-end; }
+.fr-frame.fr-nowrap { height: auto !important; width: auto !important; transform-origin: top left; }
+.fr-frame.fr-nowrap .fr-flow { overflow: visible; }
+.fr-frame.fr-nowrap .fr-p { white-space: pre; }
+.fr-p { margin: 0; white-space: pre-wrap; overflow-wrap: break-word; tab-size: 36pt; }
+/* Lines are exactly the paragraph's leading, as in the original: runs in a
+   different font (Latin words, digits) would otherwise sit on their own
+   baseline and push the line taller. */
+.fr-p > span { line-height: 0; }
+.fr-table { border-collapse: collapse; table-layout: fixed; margin: 0; }
+.fr-table td { border: .5pt solid #000; vertical-align: top; padding: 2pt 4pt; }
+.fr-image {
+  position: absolute; display: flex; align-items: center; justify-content: center;
+  background: repeating-linear-gradient(45deg, #f3f3f3, #f3f3f3 6pt, #fafafa 6pt, #fafafa 12pt);
+  border: .5pt dashed #999; color: #777; font: 8pt system-ui, sans-serif; overflow: hidden;
+}
+.fr-image img { width: 100%; height: 100%; object-fit: fill; }
+.fr-image.has-img { background: none; border: 0; }
+
+.fr-cell-turned { writing-mode: vertical-rl; margin: 0 auto; }
+.fr-cell-turned.fr-cell-up { transform: rotate(180deg); }

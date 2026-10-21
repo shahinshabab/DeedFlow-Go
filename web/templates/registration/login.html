@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block guest_content %}
+<div class="auth-shell">
+  <aside class="auth-aside">
+    <div class="brand">
+      <span class="brand-mark"><i class="bi bi-file-earmark-check"></i></span>
+      DeedFlow
+    </div>
+    <div>
+      <h2>Deed registration, without the retyping.</h2>
+      <p>Turn a deed PDF into a ready-to-submit Registration Department token in a few guided steps.</p>
+      <ul class="auth-points">
+        <li><i class="bi bi-file-earmark-arrow-up"></i> Upload the deed PDF</li>
+        <li><i class="bi bi-ui-checks"></i> Review the extracted details</li>
+        <li><i class="bi bi-cloud-upload"></i> Submit to the portal with live progress</li>
+      </ul>
+    </div>
+    <div class="small" style="color: rgba(255,255,255,.55);">Registration Department portal automation</div>
+  </aside>
+
+  <main class="auth-main">
+    <div class="auth-card">
+      <div class="auth-mobile-brand">
+        <span class="brand-mark"><i class="bi bi-file-earmark-check"></i></span>
+        DeedFlow
+      </div>
+      <h1>Welcome back</h1>
+      <p class="text-muted mb-4">Sign in to continue to your deeds.</p>
+
+      {% if login_error %}
+        <div class="alert alert-danger py-2 small">
+          <i class="alert-icon bi bi-exclamation-octagon-fill"></i>
+          <div>Invalid username or password. Please try again.</div>
+        </div>
+      {% endif %}
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="id_username" class="form-label">Username</label>
+          <input type="text" class="form-control" id="id_username" name="username" autocomplete="username" required autofocus>
+        </div>
+        <div class="mb-4">
+          <label for="id_password" class="form-label">Password</label>
+          <div class="password-wrap">
+            <input type="password" class="form-control pe-5" id="id_password" name="password" autocomplete="current-password" required>
+            <button type="button" class="toggle-pw" id="togglePassword" aria-label="Show password"><i class="bi bi-eye"></i></button>
+          </div>
+        </div>
+        <input type="hidden" name="next" value="{{ next }}">
+        <button type="submit" class="btn btn-brand btn-lg w-100">Sign in <i class="bi bi-arrow-right"></i></button>
+      </form>
+      <p class="text-muted small text-center mt-4 mb-0">Need an account? Ask your administrator.</p>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+  (function () {
+    var btn = document.getElementById("togglePassword");
+    var input = document.getElementById("id_password");
+    if (!btn || !input) return;
+    btn.addEventListener("click", function () {
+      var show = input.type === "password";
+      input.type = show ? "text" : "password";
+      btn.setAttribute("aria-label", show ? "Hide password" : "Show password");
+      btn.innerHTML = show ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
+    });
+  })();
+</script>
+{% endblock %}
