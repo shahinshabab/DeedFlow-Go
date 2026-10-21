@@ -444,7 +444,7 @@ func (a *App) LoginRequired(fn Handler) Handler {
 		if c.User == nil {
 			next := c.R.URL.RequestURI()
 			c.SaveSession()
-			c.Redirect("/login/?next=" + url.QueryEscape(next))
+			c.Redirect(loginRedirect("/login/", next))
 			return
 		}
 		fn(c)
@@ -466,7 +466,7 @@ func (a *App) OrgAdminRequired(fn Handler) Handler {
 func (a *App) StaffRequired(fn Handler) Handler {
 	return a.LoginRequired(func(c *Ctx) {
 		if !c.User.IsStaff {
-			c.Redirect("/login/?next=" + url.QueryEscape(c.R.URL.RequestURI()))
+			c.Redirect(loginRedirect("/login/", c.R.URL.RequestURI()))
 			return
 		}
 		fn(c)

@@ -32,10 +32,12 @@ func (a *App) profile(c *Ctx) {
 	if c.R.Method == "POST" && c.PostForm().Has("change_password") {
 		form = setPasswordForm("", c.attrs(), true)
 		form.Bind(c.PostForm())
-		if !auth.CheckPassword(form.Str("old_password"), c.User.Password) && form.Value("old_password") != "" {
+		// validate the fields first: clean_old_password runs on a field that passed
+		form.IsValid()
+		if old := form.Str("old_password"); old != "" && !auth.CheckPassword(old, c.User.Password) {
 			form.AddError("old_password", "Your old password was entered incorrectly. Please enter it again.")
 		}
-		if form.IsValid() && !form.HasErrors() {
+		if !form.HasErrors() {
 			c.User.Password = auth.MakePassword(form.Str("new_password2"))
 			if err := a.Store.SaveUser(c.Context(), c.User, "password"); err != nil {
 				c.ServerError(err)

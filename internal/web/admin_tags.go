@@ -27,6 +27,7 @@ func init() {
 	must(pongo2.RegisterFilter("get", filterGet))
 	must(pongo2.ReplaceFilter("urlencode", filterURLEncode))
 	must(pongo2.ReplaceFilter("capfirst", filterCapfirst))
+	must(pongo2.ReplaceFilter("escapejs", filterEscapeJS))
 }
 
 // filterURLEncode is Django's urlencode (urllib.parse.quote with "/" safe).
@@ -343,4 +344,24 @@ func filterCapfirst(in *pongo2.Value, param *pongo2.Value) (*pongo2.Value, *pong
 		return pongo2.AsSafeValue(safeHTML(capfirst(string(h)))), nil
 	}
 	return pongo2.AsValue(capfirst(in.String())), nil
+}
+
+// filterEscapeJS is Django's escapejs: the characters that could end a JavaScript string
+// or a script element become \uXXXX.
+func filterEscapeJS(in *pongo2.Value, param *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
+	var b strings.Builder
+	for _, r := range in.String() {
+		switch {
+		case r < 32 || strings.ContainsRune("\\'\"><&=-;`\u2028\u2029", r):
+			fmt.Fprintf(&b, "\\u%04X", r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return pongo2.AsSafeValue(b.String()), nil
+}
+
+// loginRedirect is the URL redirect_to_login builds: next is quoted with "/" kept.
+func loginRedirect(loginURL, next string) string {
+	return loginURL + "?next=" + strings.ReplaceAll(url.QueryEscape(next), "%2F", "/")
 }

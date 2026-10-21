@@ -80,10 +80,7 @@ func (f *aForm) fieldValue(fl *aField) fieldValue {
 				v.text, v.has = *rv.s, true
 			}
 		case "bool":
-			v.on = rv.s != nil && *rv.s != "" && strings.ToLower(*rv.s) != "false" && *rv.s != "0"
-			if rv.s != nil && strings.ToLower(*rv.s) == "true" {
-				v.on = true
-			}
+			v.on = rv.s != nil && *rv.s != "" && !strings.EqualFold(*rv.s, "false")
 		case "file":
 			v.file = valueString(f.initial[fl.name])
 		case "json":

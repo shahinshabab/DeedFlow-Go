@@ -115,4 +115,4 @@ func staffCreateForm() *forms.Form {
 // validUsername applies Django's UnicodeUsernameValidator.
 func validUsername(u string) bool { return usernameRe.MatchString(strings.TrimSpace(u)) }
 
-const badUsername = "Enter a valid username. This value may contain only unicode letters, numbers, and @/./+/-/_ characters."
+const badUsername = "Enter a valid username. This value may contain only letters, numbers, and @/./+/-/_ characters."

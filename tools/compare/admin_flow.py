@@ -692,6 +692,121 @@ def own_password_flow(r):
     r.snap("hash", "SELECT (password LIKE 'pbkdf2_sha256$%%') AS hashed FROM auth_user WHERE id=%s", (uid,))
 
 
+
+def member_fixture(r, key, org_id, role, pw, **kw):
+    uid = user_fixture(r, key, password=pbkdf2(pw), **kw)
+    r.fixture(key + "_m", "INSERT INTO accounts_membership (user_id, organization_id, role, created_at) VALUES (%s, %s, %s, now())", (uid, org_id, role))
+    r.created.append(("DELETE FROM accounts_membership WHERE id=%s", (r.ids[key + "_m"],)))
+    return uid
+
+
+@scenario
+def acct_login_flow(r):
+    pw = "pw-Twin-login-1"
+    oid = org_fixture(r, "lorg", "TwinOrg Login")
+    member_fixture(r, "twin_login", oid, "admin", pw, first_name="Lo", last_name="Gin")
+    member_fixture(r, "twin_inactive", oid, "staff", pw, is_active=False)
+    s = r.site
+    r.get("/login/", body=True)
+    r.get("/login/?next=/deeds/", body=True)
+    r.post("/login/", {"username": "", "password": ""}, "empty")
+    r.post("/login/", {"username": "twin_login", "password": "wrong"}, "wrong password")
+    r.post("/login/", {"username": "twin_inactive", "password": pw}, "inactive")
+    r.post("/login/", {"username": "TWIN_LOGIN", "password": pw}, "case differs")
+    r.post("/login/", {"username": "twin_login", "password": pw, "next": "https://evil.example/"}, "unsafe next")
+    r.get("/", "dashboard after unsafe next", body=True)
+    r.post("/logout/", {}, "logout")
+    r.get("/", "dashboard anonymous", body=True)
+    r.get("/deeds/", "deeds anonymous", body=True)
+    r.post("/login/", {"username": "twin_login", "password": pw, "next": "/account/profile/"}, "safe next")
+    r.get("/account/profile/", "profile", body=True)
+    r.get("/logout/", "logout via GET", body=True)
+    r.post("/logout/", {}, "logout again")
+    r.get("/login/?next=//evil.example", body=False)
+
+
+@scenario
+def acct_profile_flow(r):
+    pw = "pw-Twin-prof-1"
+    oid = org_fixture(r, "porg2", "TwinOrg Prof")
+    member_fixture(r, "twin_prof", oid, "staff", pw)
+    me = Site(r.site.base, "twin_prof", pw)
+    me.login()
+    r.site = me
+    path = "/account/profile/"
+    new = "N3w-Twin-prof-77"
+    r.get(path, body=True)
+    r.post(path, {"change_password": "1", "old_password": "", "new_password1": "", "new_password2": ""}, "empty")
+    r.post(path, {"change_password": "1", "old_password": "bad", "new_password1": new, "new_password2": new}, "wrong old")
+    r.post(path, {"change_password": "1", "old_password": pw, "new_password1": new, "new_password2": "x"}, "mismatch")
+    r.post(path, {"change_password": "1", "old_password": pw, "new_password1": "twin_prof", "new_password2": "twin_prof"}, "similar")
+    r.post(path, {"change_password": "1", "old_password": pw, "new_password1": new, "new_password2": new}, "ok")
+    r.get("/deeds/", "still logged in", body=False)
+    r.post(path, {"something": "else"}, "post without button")
+    r.snap("hash", "SELECT (password LIKE 'pbkdf2_sha256$%%') AS hashed FROM auth_user WHERE username='twin_prof'")
+
+
+@scenario
+def acct_org_flow(r):
+    pw = "pw-Twin-orgadm-1"
+    oid = org_fixture(r, "aorg", "TwinOrg Acct")
+    other = org_fixture(r, "aorg_other", "TwinOrg Other")
+    aid = member_fixture(r, "twin_oadm", oid, "admin", pw, first_name="Org", last_name="Admin")
+    member_fixture(r, "twin_ostaff", oid, "staff", pw)
+    member_fixture(r, "twin_other_staff", other, "staff", pw)
+    me = Site(r.site.base, "twin_oadm", pw)
+    me.login()
+    st = Site(r.site.base, "twin_ostaff", pw)
+    st.login()
+    r.site = me
+    path = "/account/organization/"
+    r.get(path, body=True)
+    r.post(path, {"action": "rename", "org-name": ""}, "rename empty")
+    r.post(path, {"action": "rename", "org-name": "x" * 300}, "rename long")
+    r.post(path, {"action": "rename", "org-name": "  TwinOrg Acct Renamed "}, "rename ok")
+    pbase = {"action": "portal", "portal-portal_username": "pu", "portal-password": "", "portal-new_deed_menu_index": "1", "portal-my_deeds_menu_index": "2",
+             "portal-collect_receipts": "on", "portal-alert_email": "alert@example.com"}
+    r.post(path, dict(pbase, **{"portal-alert_email": "bad"}), "portal bad email")
+    r.post(path, dict(pbase, **{"portal-new_deed_menu_index": "-3"}), "portal bad index")
+    r.post(path, dict(pbase, **{"portal-portal_username": ""}), "portal blank user")
+    r.post(path, dict(pbase, **{"portal-password": "portal-pw-1"}), "portal ok with password")
+    r.snap("cred", "SELECT portal_username, (portal_password <> '') AS has_pw, new_deed_menu_index, my_deeds_menu_index, collect_receipts, alert_email FROM accounts_portalcredential WHERE organization_id=%s", (oid,))
+    r.post(path, dict(pbase, **{"portal-collect_receipts": ""}), "portal keep password, no collect")
+    r.get(path, "page with credential", body=True)
+    sbase = {"action": "add_staff", "staff-full_name": "New Person", "staff-username": "twin_newstaff", "staff-password": "Tw1n-Staff-Pass-77"}
+    r.post(path, dict(sbase, **{"staff-full_name": ""}), "staff no name")
+    r.post(path, dict(sbase, **{"staff-username": "twin_oadm"}), "staff username taken")
+    r.post(path, dict(sbase, **{"staff-username": "TWIN_OADM"}), "staff username taken (case)")
+    r.post(path, dict(sbase, **{"staff-username": "bad name"}), "staff bad username")
+    r.post(path, dict(sbase, **{"staff-password": "abc"}), "staff weak password")
+    r.post(path, dict(sbase, **{"staff-password": "twin_newstaff"}), "staff similar password")
+    r.post(path, dict(sbase), "staff ok")
+    find_and_clean(r, "auth_user", "username=%s", ("twin_newstaff",), "newstaff", None)
+    r.created.append(("DELETE FROM accounts_membership WHERE user_id=%s", (r.ids.get("newstaff", 0),)))
+    r.snap("newstaff", "SELECT first_name, last_name, is_active, (password LIKE 'pbkdf2_sha256$%%') AS hashed FROM auth_user WHERE username='twin_newstaff'")
+    sid = r.ids["twin_ostaff"]
+    r.post(f"{path}staff/{sid}/active/", {}, "toggle off")
+    r.snap("active", "SELECT is_active FROM auth_user WHERE id=%s", (sid,))
+    r.post(f"{path}staff/{sid}/active/", {}, "toggle on")
+    r.get(f"{path}staff/{sid}/active/", "toggle via GET")
+    r.get(f"{path}staff/{sid}/password/", "staff password page", body=True)
+    r.post(f"{path}staff/{sid}/password/", {"new_password1": "x", "new_password2": "y"}, "staff pw mismatch")
+    r.post(f"{path}staff/{sid}/password/", {"new_password1": "abc", "new_password2": "abc"}, "staff pw weak")
+    r.post(f"{path}staff/{sid}/password/", {"new_password1": "N3w-Staff-pass-55", "new_password2": "N3w-Staff-pass-55"}, "staff pw ok")
+    other_staff = r.ids["twin_other_staff"]
+    r.get(f"{path}staff/{other_staff}/password/", "other org staff", body=True)
+    r.post(f"{path}staff/{other_staff}/active/", {}, "other org toggle")
+    r.get(f"{path}staff/{aid}/password/", "admin themself", body=True)
+    r.get(f"{path}staff/99999999/password/", "unknown staff", body=True)
+    # a staff member cannot open the page
+    r.site = st
+    r.get(path, "staff opens organization", body=True)
+    r.get("/", "dashboard as staff", body=True)
+    r.get("/deeds/", "deeds as staff", body=True)
+    r.get("/accounts/", "ledger as staff", body=True)
+    r.created.append(("DELETE FROM accounts_portalcredential WHERE organization_id=%s", (oid,)))
+
+
 def run_all(prefixes):
     results = {}
     for fn in SCENARIOS:

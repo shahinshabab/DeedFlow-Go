@@ -140,8 +140,11 @@ func (f *Form) Value(name string) string {
 			return f.Initial[name]
 		}
 		if fl != nil && fl.Widget == Checkbox {
-			if _, ok := f.Data[f.AddPrefix(name)]; ok {
-				return "on"
+			// CheckboxInput.value_from_datadict: absent, empty and "false" are off
+			if vals, ok := f.Data[f.AddPrefix(name)]; ok && len(vals) > 0 {
+				if v := vals[len(vals)-1]; v != "" && !strings.EqualFold(v, "false") {
+					return "on"
+				}
 			}
 			return ""
 		}

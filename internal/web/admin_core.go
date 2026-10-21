@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"fmt"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -133,7 +132,7 @@ func (a *App) adminView(fn func(r *adminReq)) Handler {
 	return func(c *Ctx) {
 		if c.User == nil || !c.User.IsActive || !c.User.IsStaff {
 			c.SaveSession()
-			c.Redirect("/admin/login/?next=" + url.QueryEscape(c.R.URL.RequestURI()))
+			c.Redirect(loginRedirect("/admin/login/", c.R.URL.RequestURI()))
 			return
 		}
 		perms, err := a.loadAdminPerms(c.Context(), c.User.ID, c.User.IsSuperuser)

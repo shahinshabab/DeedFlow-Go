@@ -461,22 +461,7 @@ func (f *aForm) cleanField(fl *aField) (any, []string) {
 	case "splitdt":
 		return f.cleanSplitDateTime(fl, rv)
 	case "bool":
-		v := false
-		if rv.s != nil {
-			l := strings.ToLower(*rv.s)
-			switch l {
-			case "true":
-				v = true
-			case "false":
-				v = false
-			default:
-				v = *rv.s != ""
-			}
-			if l == "0" {
-				// BooleanField.to_python turns "0" into False after the widget made it True
-				v = false
-			}
-		}
+		v := rv.s != nil && *rv.s != "" && !strings.EqualFold(*rv.s, "false")
 		if !v && fl.required {
 			return nil, req()
 		}
@@ -865,7 +850,7 @@ func (f *aForm) fieldChanged(fl *aField) bool {
 		return d.Format("2006-01-02") != ds || time.Time{}.Add(tm).Format("15:04:05") != ts
 	case "bool":
 		b, _ := init.(bool)
-		return b != (rv.s != nil && *rv.s != "" && strings.ToLower(*rv.s) != "false" && *rv.s != "0")
+		return b != (rv.s != nil && *rv.s != "" && !strings.EqualFold(*rv.s, "false"))
 	case "choice":
 		return valueString(init) != str(rv.s)
 	case "model":

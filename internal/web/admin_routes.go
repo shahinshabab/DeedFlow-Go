@@ -2,7 +2,6 @@ package web
 
 import (
 	"net/http"
-	"net/url"
 	"strings"
 )
 
@@ -50,7 +49,7 @@ func (a *App) registerAdmin() {
 func (a *App) adminCatchAll(c *Ctx) {
 	if c.User == nil || !c.User.IsActive || !c.User.IsStaff {
 		c.SaveSession()
-		c.Redirect("/admin/login/?next=" + url.QueryEscape(c.R.URL.RequestURI()))
+		c.Redirect(loginRedirect("/admin/login/", c.R.URL.RequestURI()))
 		return
 	}
 	if !strings.HasSuffix(c.R.URL.Path, "/") {
