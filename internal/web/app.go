@@ -478,6 +478,12 @@ func (a *App) Route(name, path string, fn Handler) {
 	a.Router.Handle(name, path, a.wrap(name, fn))
 }
 
+// RouteOrdered is Route for a prefix whose patterns must be tried in order
+// (see Router.HandleOrdered); the prefix is mounted with Router.MountOrdered.
+func (a *App) RouteOrdered(name, path string, fn Handler) {
+	a.Router.HandleOrdered(name, path, a.wrap(name, fn))
+}
+
 // --- static & media ------------------------------------------------------------
 
 // StaticURL is the URL of a static file with a content hash for cache busting.

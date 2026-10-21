@@ -1,0 +1,31 @@
+{% load ledger_tags %}
+<div class="row g-3">
+  {% for group in item.receipt_groups %}
+    <div class="col-md-6">
+      <h3 class="fs-6 fw-semibold mb-2">{{ group.label }}</h3>
+      {% for r in group.receipts %}
+        <div class="card mb-2">
+          <div class="card-body p-0">
+            <table class="table table-sm kv-table mb-0">
+              {% for field in r.fields %}
+                <tr><th>{{ field.label }}</th><td>{{ field.value }}</td></tr>
+              {% empty %}
+                <tr><th>Transaction number</th><td>{{ r.transaction_no }}</td></tr>
+                <tr><th>Amount</th><td>₹{{ r.amount|default:"—" }}</td></tr>
+              {% endfor %}
+              {% if r.payment_mode %}<tr><th>Payment mode</th><td>{{ r.payment_mode }}</td></tr>{% endif %}
+            </table>
+          </div>
+        </div>
+      {% empty %}
+        <p class="text-muted small">No {{ group.label|lower }} receipt on the portal.</p>
+      {% endfor %}
+    </div>
+  {% endfor %}
+</div>
+<dl class="kv mt-3 small">
+  {% if item.presenter_name_ml %}<dt>Presenter</dt><dd>{{ item.presenter_name_ml }}{% if item.presenter_place_ml %}, {{ item.presenter_place_ml }}{% endif %}</dd>{% endif %}
+  {% if item.presented_at %}<dt>Presented</dt><dd>{{ item.presented_at|date:"d M Y, g:i A" }}</dd>{% endif %}
+  {% if item.document_amount %}<dt>Document amount</dt><dd>₹{{ item.document_amount }}</dd>{% endif %}
+  {% if item.collected_at %}<dt>Collected</dt><dd>{{ item.collected_at|date:"d M Y, g:i A" }}</dd>{% endif %}
+</dl>

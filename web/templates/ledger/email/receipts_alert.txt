@@ -1,0 +1,20 @@
+{% autoescape off %}{% if failed %}DeedFlow's receipt collection stopped tonight for {{ organization }}.{% else %}DeedFlow could not collect every payment receipt tonight for {{ organization }}.{% endif %}
+
+Night of {{ night|date:"j F Y" }} - tried at 9 PM, 10 PM and 11 PM.
+{% if failed %}
+Why it stopped: {{ run.message|default:"no reason recorded" }}
+{% endif %}
+Registered tokens found: {{ run.registered_found }}
+Collected tonight:       {{ collected_tonight }}
+Still pending:           {{ pending_count }}
+{% if pending %}
+Pending tokens:
+{% for t in pending %}- {{ t.token }}{% if t.presentation_date %} ({{ t.presentation_date|date:"j M Y" }}){% endif %} {{ t.name|default:"no name yet" }}: {{ t.last_error|default:"not collected yet" }}
+{% endfor %}{% if more %}...and {{ more }} more.
+{% endif %}{% endif %}
+These will be tried again tomorrow night. You can also start a run now with "Collect now" on the Accounts page{% if accounts_url %}:
+{{ accounts_url }}{% else %}.{% endif %}
+
+-- 
+DeedFlow sends this after the 11 PM run when receipts are still pending.
+{% endautoescape %}

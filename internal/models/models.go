@@ -394,6 +394,10 @@ func TotalOf(receipts []PaymentReceipt) *db.Decimal {
 			sum = sum.Add(*r.Amount)
 		}
 	}
+	// Amounts are numeric(14,2): the total keeps their two decimals ("2000.00").
+	if d, err := db.ParseDecimal(sum.Fixed(2)); err == nil {
+		sum = d
+	}
 	return &sum
 }
 

@@ -138,7 +138,9 @@ type Worker struct {
 	// Concurrency is how many jobs of a kind may run at once; kinds missing
 	// from the map use 1.
 	Concurrency map[string]int
-	Log         *slog.Logger
+	// Schedulers are loops started with the worker (they end with ctx).
+	Schedulers []func(ctx context.Context)
+	Log        *slog.Logger
 
 	mu      sync.Mutex
 	running map[string]int
@@ -147,6 +149,9 @@ type Worker struct {
 // Run claims and runs jobs until ctx ends.
 func (w *Worker) Run(ctx context.Context) {
 	w.running = map[string]int{}
+	for _, s := range w.Schedulers {
+		go s(ctx)
+	}
 	wake := make(chan struct{}, 1)
 	go func() {
 		for ctx.Err() == nil {

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Receipts {{ item.token }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="eyebrow"><a href="{% url 'ledger:list' %}">Receipts</a></div>
+    <h1 class="mt-1">{{ item.token }}</h1>
+    <p class="page-subtitle">{{ item.name|default:"" }}{% if item.sro %} · {{ item.sro }}{% endif %}</p>
+  </div>
+</div>
+<div class="card"><div class="card-body">{% include "ledger/_receipts.html" %}</div></div>
+{% endblock %}

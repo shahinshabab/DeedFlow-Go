@@ -15,6 +15,7 @@ import (
 
 	"github.com/flosch/pongo2/v6"
 
+	"github.com/shahinshabab/deedflow-go/internal/config"
 	"github.com/shahinshabab/deedflow-go/web"
 )
 
@@ -316,6 +317,19 @@ func (c *Ctx) templateUser() map[string]any {
 	}
 }
 
+// messageMaps are the flash messages as the templates read them (message.tags,
+// message.text).
+func messageMaps(msgs []Message) []map[string]string {
+	if len(msgs) == 0 {
+		return nil
+	}
+	out := make([]map[string]string, len(msgs))
+	for i, m := range msgs {
+		out[i] = map[string]string{"tags": m.Tags, "text": m.Text}
+	}
+	return out
+}
+
 // Render executes a template with the common context and writes the page.
 func (c *Ctx) Render(name string, data Data) {
 	c.RenderStatus(http.StatusOK, name, data)
@@ -327,7 +341,7 @@ func (c *Ctx) RenderStatus(status int, name string, data Data) {
 		"user":         c.templateUser(),
 		"csrf_token":   c.csrfToken,
 		"view_name":    c.ViewName,
-		"messages":     c.Session.popMessages(),
+		"messages":     messageMaps(c.Session.popMessages()),
 		"is_org_admin": c.IsOrgAdmin(),
 		"organization": nil,
 		"debug":        c.App.Cfg.Debug,
@@ -352,6 +366,26 @@ func (c *Ctx) RenderStatus(status int, name string, data Data) {
 	c.W.Header().Set("Content-Type", "text/html; charset=utf-8")
 	c.W.WriteHeader(status)
 	_, _ = c.W.Write(buf.Bytes())
+}
+
+// NewRenderer renders templates outside a request (the worker's emails). Its
+// filters only need the configuration; {% url %} and friends need a running App.
+func NewRenderer(cfg *config.Config) (func(name string, data map[string]any) (string, error), error) {
+	if current == nil {
+		current = &App{Cfg: cfg}
+	}
+	sub, err := fs.Sub(web.FS, "templates")
+	if err != nil {
+		return nil, err
+	}
+	set := pongo2.NewSet("deedflow-mail", rootLoader{pongo2.NewFSLoader(sub)})
+	return func(name string, data map[string]any) (string, error) {
+		tpl, err := set.FromFile(name)
+		if err != nil {
+			return "", err
+		}
+		return tpl.Execute(pongo2.Context(data))
+	}, nil
 }
 
 // RenderString renders a template to a string (emails).

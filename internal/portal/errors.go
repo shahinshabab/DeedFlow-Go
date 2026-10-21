@@ -38,6 +38,13 @@ type SessionLostError struct{ Msg string }
 
 func (e *SessionLostError) Error() string { return e.Msg }
 
+// ReceiptsUnavailable: the portal answered, but the token's payment details
+// can't be shown (not found, a message instead of the tabs...). Not worth
+// retrying tonight with a fresh login; reported on the token.
+type ReceiptsUnavailable struct{ Msg string }
+
+func (e *ReceiptsUnavailable) Error() string { return e.Msg }
+
 // fillError is raised inside a step on any failure. retryable=false marks a
 // failure that repeating with the same data can't fix (an explicit portal
 // validation rejection, a value that isn't one of a dropdown's options).
@@ -89,8 +96,9 @@ func isRaised(e error) bool {
 		tu *TokenUnavailableError
 		sl *SessionLostError
 		fe *fillError
+		ru *ReceiptsUnavailable
 	)
-	return errors.As(e, &wd) || errors.As(e, &pe) || errors.As(e, &tu) || errors.As(e, &sl) || errors.As(e, &fe) ||
+	return errors.As(e, &wd) || errors.As(e, &pe) || errors.As(e, &tu) || errors.As(e, &sl) || errors.As(e, &fe) || errors.As(e, &ru) ||
 		errors.Is(e, errCanceled)
 }
 

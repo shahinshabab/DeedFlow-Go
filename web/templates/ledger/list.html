@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% load ledger_tags %}
+{% block title %}Receipts{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Receipts</h1>
+    <p class="page-subtitle">Stamp duty and registration fee receipts of your registered tokens, newest first. Collected from the portal every night at 9 PM.</p>
+  </div>
+  <div class="page-actions">
+    {% if is_org_admin and has_portal_login %}
+      <form method="post" action="{% url 'ledger:collect' %}" class="m-0">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-brand"><i class="bi bi-arrow-repeat"></i> Collect now</button>
+      </form>
+    {% endif %}
+    <a href="{% url 'ledger:export' %}?{{ query_string }}" class="btn btn-brand">
+      <i class="bi bi-file-earmark-excel"></i> Download Excel
+    </a>
+  </div>
+</div>
+
+{% if not collecting_enabled %}
+  <div class="alert alert-info">
+    <i class="alert-icon bi bi-info-circle-fill"></i>
+    <div>Nightly collection is off for your organization.{% if is_org_admin %} Turn on "Collect payment receipts nightly" on the <a href="{% url 'accounts:organization' %}">Organization</a> page.{% endif %}</div>
+  </div>
+{% endif %}
+{% if last_run %}
+  <p class="text-muted small mb-3">
+    <i class="bi bi-clock-history"></i>
+    Last collection {{ last_run.started_at|date:"d M Y, g:i A" }}: {{ last_run.get_status_display|lower }}{% if last_run.status != "running" %}, {{ last_run.registered_found }} registered token{{ last_run.registered_found|pluralize }} on the portal, {{ last_run.collected }} collected{% if last_run.pending %}, {{ last_run.pending }} pending{% endif %}{% endif %}{% if last_run.message %} ({{ last_run.message }}){% endif %}.
+  </p>
+{% endif %}
+
+<form method="get" class="card filter-bar mb-3">
+  <div class="card-body py-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-lg-5">
+        <label class="form-label mb-1" for="q">Search</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="search" class="form-control" id="q" name="q" value="{{ q }}"
+                 placeholder="Token, name, place, transaction no. or GRN">
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-2">
+        <label class="form-label mb-1" for="place">Place</label>
+        <select class="form-select" id="place" name="place">
+          <option value="">All places</option>
+          {% for value in places %}
+            <option value="{{ value }}" {% if value == place %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label mb-1" for="from">Presentation date</label>
+        <div class="input-group">
+          <input type="date" class="form-control" id="from" name="from" value="{{ date_from }}" aria-label="From">
+          <span class="input-group-text">to</span>
+          <input type="date" class="form-control" id="to" name="to" value="{{ date_to }}" aria-label="To">
+        </div>
+      </div>
+      <div class="col-lg-2 d-flex gap-2">
+        <button type="submit" class="btn btn-brand flex-grow-1"><i class="bi bi-funnel"></i> Filter</button>
+        {% if filtered %}
+          <a href="{% url 'ledger:list' %}" class="btn btn-outline-secondary btn-icon" title="Clear filters" aria-label="Clear filters"><i class="bi bi-x-lg"></i></a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="card overflow-hidden">
+  {% if page.object_list %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle table-stack">
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>Name</th>
+            <th>Place</th>
+            <th class="text-end">Stamp duty</th>
+            <th class="text-end">Registration fee</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in page.object_list %}
+            {% with sd=item.stamp_receipts rf=item.fee_receipts %}
+            <tr>
+              <td>
+                <span class="cell-title">{{ item.token }}</span>
+                <div class="cell-sub">{{ item.presentation_date|date:"d M Y"|default:"—" }}</div>
+              </td>
+              <td data-label="Name">
+                {{ item.applicant_name|default:item.presenter_name_ml|default:"—" }}
+                {% if item.applicant_name and item.presenter_name_ml %}<div class="cell-sub">{{ item.presenter_name_ml }}</div>{% endif %}
+              </td>
+              <td data-label="Place">{{ item.sro|default:"—" }}</td>
+              <td data-label="Stamp duty" class="text-end text-nowrap">{% if sd %}₹{{ item.stamp_total }}{% else %}—{% endif %}</td>
+              <td data-label="Registration fee" class="text-end text-nowrap">{% if rf %}₹{{ item.fee_total }}{% else %}—{% endif %}</td>
+              <td class="text-end text-nowrap cell-actions">
+                {% if item.status != "collected" %}
+                  <span class="status-pill {% if item.status == 'failed' %}s-failed{% else %}s-ready_for_review{% endif %} me-1" title="{{ item.last_error }}">{{ item.get_status_display }}</span>
+                {% endif %}
+                <button type="button" class="btn btn-sm btn-outline-brand" data-receipts="{% url 'ledger:receipts' item.token %}?partial=1"
+                        data-token="{{ item.token }}"{% if not sd and not rf %} disabled{% endif %}>
+                  <i class="bi bi-receipt"></i> Receipts
+                </button>
+              </td>
+            </tr>
+            {% endwith %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% elif filtered %}
+    <div class="empty-state">
+      <span class="icon-tile"><i class="bi bi-search"></i></span>
+      <h2>No tokens match these filters</h2>
+      <p>Try a different token, name, place or date range.</p>
+      <a href="{% url 'ledger:list' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> Clear filters</a>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <span class="icon-tile"><i class="bi bi-journal-text"></i></span>
+      <h2>No receipts yet</h2>
+      <p>Registered tokens and their payment receipts appear here after the nightly collection from the portal.</p>
+    </div>
+  {% endif %}
+  {% if page.paginator.num_pages > 1 %}
+    <div class="pager">
+      <span>Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.paginator.count }}</span>
+      <div class="d-flex gap-2">
+        {% if page.has_previous %}
+          <a class="btn btn-sm btn-outline-secondary" href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Previous</a>
+        {% endif %}
+        {% if page.has_next %}
+          <a class="btn btn-sm btn-outline-secondary" href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page.next_page_number }}">Next <i class="bi bi-chevron-right"></i></a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<div class="modal fade" id="receiptsModal" tabindex="-1" aria-labelledby="receiptsModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="receiptsModalTitle">Receipts</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="receiptsModalBody"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+  (function () {
+    var modalEl = document.getElementById("receiptsModal");
+    var body = document.getElementById("receiptsModalBody");
+    var title = document.getElementById("receiptsModalTitle");
+    var modal = new bootstrap.Modal(modalEl);
+    document.querySelectorAll("[data-receipts]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        title.textContent = "Receipts · " + btn.dataset.token;
+        body.innerHTML = '<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm"></span> Loading…</div>';
+        modal.show();
+        fetch(btn.dataset.receipts, {credentials: "same-origin"})
+          .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+          .then(function (html) { body.innerHTML = html; })
+          .catch(function () { body.innerHTML = '<div class="alert alert-danger mb-0">Could not load the receipts.</div>'; });
+      });
+    });
+  })();
+</script>
+{% endblock %}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/shahinshabab/deedflow-go/internal/db"
 	"github.com/shahinshabab/deedflow-go/internal/deeds"
+	"github.com/shahinshabab/deedflow-go/internal/mail"
 	"github.com/shahinshabab/deedflow-go/internal/models"
 	"github.com/shahinshabab/deedflow-go/internal/pipeline"
 	"github.com/shahinshabab/deedflow-go/internal/portal"
@@ -580,4 +581,21 @@ func probeRowActions(ctx context.Context, e *Env, args []string) error {
 		}
 	}
 	return bot.ProbeRowActions(*token, ids, *shots, func(s string) { fmt.Println(s) })
+}
+
+func init() { commands["send_test_email"] = sendTestEmail }
+
+// sendTestEmail sends one test email, to check the server's mail settings.
+func sendTestEmail(ctx context.Context, e *Env, args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: deedflow send_test_email you@example.com")
+	}
+	sender := mail.New(e.Cfg)
+	msg := &mail.Message{From: e.Cfg.DefaultFromEmail, To: []string{args[0]}, Subject: "DeedFlow test email",
+		Text: "If you can read this, DeedFlow can send email."}
+	if err := sender.Send(ctx, msg); err != nil {
+		return err
+	}
+	fmt.Printf("Sent from %s to %s via %s.\n", e.Cfg.DefaultFromEmail, args[0], sender.Description())
+	return nil
 }

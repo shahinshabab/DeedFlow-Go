@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Payments{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Payments</h1>
+    <p class="page-subtitle">The office's own expenses (rent, bills, salaries and others) with their bills, newest first.</p>
+  </div>
+  <div class="page-actions">
+    <a href="{% url 'ledger:payments_export' %}?{{ query_string }}" class="btn btn-outline-brand">
+      <i class="bi bi-file-earmark-excel"></i> Download Excel
+    </a>
+    <a href="{% url 'ledger:payment_add' %}" class="btn btn-brand"><i class="bi bi-plus-lg"></i> Add payment</a>
+  </div>
+</div>
+
+<form method="get" class="card filter-bar mb-3">
+  <div class="card-body py-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-lg-4">
+        <label class="form-label mb-1" for="q">Search</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="search" class="form-control" id="q" name="q" value="{{ q }}" placeholder="Details or bill name">
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label mb-1" for="category">Category</label>
+        <select class="form-select" id="category" name="category">
+          <option value="">All categories</option>
+          {% for choice in categories %}
+            <option value="{{ choice.value }}" {% if choice.value == category %}selected{% endif %}>{{ choice.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label mb-1" for="from">Date</label>
+        <div class="input-group">
+          <input type="date" class="form-control" id="from" name="from" value="{{ date_from }}" aria-label="From">
+          <span class="input-group-text">to</span>
+          <input type="date" class="form-control" id="to" name="to" value="{{ date_to }}" aria-label="To">
+        </div>
+      </div>
+      <div class="col-lg-2 d-flex gap-2">
+        <button type="submit" class="btn btn-brand flex-grow-1"><i class="bi bi-funnel"></i> Filter</button>
+        {% if filtered %}
+          <a href="{% url 'ledger:payments' %}" class="btn btn-outline-secondary btn-icon" title="Clear filters" aria-label="Clear filters"><i class="bi bi-x-lg"></i></a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</form>
+
+{% if by_category %}
+  <div class="card mb-3">
+    <div class="card-body py-3 d-flex flex-wrap gap-4 align-items-center">
+      <div>
+        <div class="text-muted small">Total{% if filtered %} (filtered){% endif %}</div>
+        <div class="fs-5 fw-semibold">₹{{ total|floatformat:"2g" }}</div>
+      </div>
+      {% for row in by_category %}
+        <div>
+          <div class="text-muted small">{{ row.label }}</div>
+          <div class="fw-semibold">₹{{ row.total|floatformat:"2g" }}</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+<div class="card overflow-hidden">
+  {% if page.object_list %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle table-stack">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Category</th>
+            <th>Details</th>
+            <th class="text-end">Amount</th>
+            <th>Bills</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in page.object_list %}
+            <tr>
+              <td><span class="cell-title">{{ item.date|date:"d M Y" }}</span></td>
+              <td data-label="Category">{{ item.get_category_display }}</td>
+              <td data-label="Details">
+                {{ item.description|default:"—" }}
+                {% if item.payment_mode %}<div class="cell-sub">{{ item.get_payment_mode_display }}</div>{% endif %}
+              </td>
+              <td data-label="Amount" class="text-end text-nowrap">₹{{ item.amount|floatformat:"2g" }}</td>
+              <td data-label="Bills">
+                {% for bill in item.bills %}
+                  <a href="{% url 'ledger:payment_bill' bill.pk %}" target="_blank" rel="noopener" class="me-1" title="{{ bill.original_name }}">
+                    <i class="bi {% if bill.is_image %}bi-file-earmark-image{% else %}bi-file-earmark-pdf{% endif %} fs-5"></i></a>
+                {% empty %}
+                  <span class="text-muted small">None</span>
+                {% endfor %}
+              </td>
+              <td class="text-end text-nowrap cell-actions">
+                <a href="{% url 'ledger:payment_edit' item.pk %}" class="btn btn-sm btn-outline-brand"><i class="bi bi-pencil"></i> Edit</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% elif filtered %}
+    <div class="empty-state">
+      <span class="icon-tile"><i class="bi bi-search"></i></span>
+      <h2>No payments match these filters</h2>
+      <p>Try a different category, date range or search.</p>
+      <a href="{% url 'ledger:payments' %}" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i> Clear filters</a>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <span class="icon-tile"><i class="bi bi-wallet2"></i></span>
+      <h2>No payments yet</h2>
+      <p>Record the office's rent, electricity and telephone bills, salaries and other expenses here, with a photo or file of each bill.</p>
+      <a href="{% url 'ledger:payment_add' %}" class="btn btn-brand"><i class="bi bi-plus-lg"></i> Add payment</a>
+    </div>
+  {% endif %}
+  {% if page.paginator.num_pages > 1 %}
+    <div class="pager">
+      <span>Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.paginator.count }}</span>
+      <div class="d-flex gap-2">
+        {% if page.has_previous %}
+          <a class="btn btn-sm btn-outline-secondary" href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page.previous_page_number }}"><i class="bi bi-chevron-left"></i> Previous</a>
+        {% endif %}
+        {% if page.has_next %}
+          <a class="btn btn-sm btn-outline-secondary" href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page.next_page_number }}">Next <i class="bi bi-chevron-right"></i></a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -49,6 +49,7 @@ testing and maintenance:
   probe_portal_page       print what the portal shows on a page (read-only)
   probe_row_actions       print a token tab's row actions (read-only)
   probe_fair_value        probe the fair value lookup (read-only)
+  send_test_email         send one test email to check the mail settings
 `
 
 // Run executes a command.

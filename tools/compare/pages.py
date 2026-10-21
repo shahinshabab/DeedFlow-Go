@@ -33,7 +33,7 @@ class Site:
                 return c.value
         return ""
 
-    def req(self, method, path, data=None, headers=None, raw_body=None, content_type=None):
+    def req(self, method, path, data=None, headers=None, raw_body=None, content_type=None, binary=False):
         url = self.base + path
         h = dict(headers or {})
         body = raw_body
@@ -52,7 +52,8 @@ class Site:
         except urllib.error.HTTPError as e:
             resp = e
         status = getattr(resp, "status", None) or resp.code
-        return status, resp.headers, resp.read().decode("utf-8", "replace")
+        data = resp.read()
+        return status, resp.headers, data if binary else data.decode("utf-8", "replace")
 
     def login(self):
         self.req("GET", "/login/")

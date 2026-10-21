@@ -6,6 +6,4 @@ func (a *App) registerStubs() {
 	stub := func(c *Ctx) { c.NotFound() }
 	a.Route("filereader:index", "file-reader/", a.LoginRequired(stub))
 	a.Route("filereader:filing", "file-reader/filing-sheets/", a.LoginRequired(stub))
-	a.Route("ledger:list", "accounts/", a.LoginRequired(stub))
-	a.Route("ledger:payments", "accounts/payments/", a.LoginRequired(stub))
 }
