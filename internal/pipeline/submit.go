@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shahinshabab/deedflow-go/internal/config"
 	"github.com/shahinshabab/deedflow-go/internal/deeds"
 	"github.com/shahinshabab/deedflow-go/internal/jobs"
 	"github.com/shahinshabab/deedflow-go/internal/media"
@@ -34,17 +35,24 @@ func (e *Env) newPortal(ctx context.Context, cred *models.PortalCredential, dead
 	if e.NewPortal != nil {
 		return e.NewPortal(ctx, cred, deadline)
 	}
-	password, _ := portalcrypt.Decrypt(e.Cfg.FieldEncryptionKey, cred.PortalPassword)
-	a, err := portal.New(ctx, portal.Config{
-		SeleniumURL: e.Cfg.SeleniumRemoteURL, PortalURL: e.Cfg.PortalURL, Tesseract: e.Cfg.TesseractCmd, Headless: true,
-	}, portal.Credentials{
-		Username: cred.PortalUsername, Password: password,
-		NewDeedMenuIndex: int(cred.NewDeedMenuIndex), MyDeedsMenuIndex: int(cred.MyDeedsMenuIndex),
-	}, deadline)
+	a, err := OpenPortal(ctx, e.Cfg, cred, deadline)
 	if err != nil {
 		return nil, err
 	}
 	return a, nil
+}
+
+// OpenPortal starts a real portal browser session for an organization's
+// login: the Selenium grid and portal addresses come from the configuration,
+// the password is decrypted with FIELD_ENCRYPTION_KEY.
+func OpenPortal(ctx context.Context, cfg *config.Config, cred *models.PortalCredential, deadline time.Time) (*portal.Automation, error) {
+	password, _ := portalcrypt.Decrypt(cfg.FieldEncryptionKey, cred.PortalPassword)
+	return portal.New(ctx, portal.Config{
+		SeleniumURL: cfg.SeleniumRemoteURL, PortalURL: cfg.PortalURL, Tesseract: cfg.TesseractCmd, Headless: true,
+	}, portal.Credentials{
+		Username: cred.PortalUsername, Password: password,
+		NewDeedMenuIndex: int(cred.NewDeedMenuIndex), MyDeedsMenuIndex: int(cred.MyDeedsMenuIndex),
+	}, deadline)
 }
 
 // Passes over one submission: the first, then up to four more on the same
@@ -169,8 +177,8 @@ func (e *Env) completeDeed(ctx context.Context, deed *models.Deed, cols ...strin
 	})
 }
 
-// ensureBaseline records the portal baseline of a deed that already has a token.
-func (e *Env) ensureBaseline(ctx context.Context, deed *models.Deed) error {
+// EnsureBaseline records the portal baseline of a deed that already has a token.
+func (e *Env) EnsureBaseline(ctx context.Context, deed *models.Deed) error {
 	data, err := e.Store.LoadDeedData(ctx, deed)
 	if err != nil {
 		return err
@@ -254,7 +262,7 @@ func (e *Env) runSubmission(ctx context.Context, deed *models.Deed, cred *models
 	if existingToken != "" {
 		// Update-token flow: only the categories edited since they were last
 		// confirmed on the portal are sent (each cleared there and re-entered).
-		if err := e.ensureBaseline(ctx, deed); err != nil {
+		if err := e.EnsureBaseline(ctx, deed); err != nil {
 			return err
 		}
 		sections = []string{}
@@ -456,7 +464,7 @@ func (e *Env) runSubmission(ctx context.Context, deed *models.Deed, cred *models
 		// Another pass on the same token, for the sections not confirmed yet -
 		// minus any the portal refused on their data, which would only be
 		// refused again.
-		if err := e.ensureBaseline(ctx, deed); err != nil {
+		if err := e.EnsureBaseline(ctx, deed); err != nil {
 			return err
 		}
 		refused := dataRefusals(result)

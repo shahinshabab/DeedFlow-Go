@@ -108,7 +108,7 @@ type Options struct {
 // NewRemote starts a session on the WebDriver server at baseURL (a Selenium
 // Grid's .../wd/hub or a chromedriver's root).
 func NewRemote(ctx context.Context, baseURL string, o Options) (*Driver, error) {
-	d := &Driver{base: strings.TrimRight(baseURL, "/"), client: &http.Client{Timeout: 5 * time.Minute}}
+	d := &Driver{base: strings.TrimRight(baseURL, "/"), client: &http.Client{Timeout: 10 * time.Minute}}
 	if o.Browser == "" {
 		o.Browser = "chrome"
 	}
@@ -223,6 +223,11 @@ func (d *Driver) Quit(ctx context.Context) error {
 // SetPageLoadTimeout limits how long a navigation may take.
 func (d *Driver) SetPageLoadTimeout(ctx context.Context, t time.Duration) error {
 	return d.call(ctx, http.MethodPost, d.path("/timeouts"), map[string]any{"pageLoad": t.Milliseconds()}, nil)
+}
+
+// SetScriptTimeout limits how long an async script may run.
+func (d *Driver) SetScriptTimeout(ctx context.Context, t time.Duration) error {
+	return d.call(ctx, http.MethodPost, d.path("/timeouts"), map[string]any{"script": t.Milliseconds()}, nil)
 }
 
 // Get navigates to url.

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -394,5 +395,39 @@ func (s *Store) MarkStaleSubmission(ctx context.Context, id int64, message strin
 // ResetForReprocess puts a failed deed back to extracting for another run.
 func (s *Store) ResetForReprocess(ctx context.Context, id int64) error {
 	_, err := s.q().Exec(ctx, `UPDATE deeds_deed SET status = 'extracting', progress = 0, result_message = '', updated_at = now() WHERE id = $1`, id)
+	return err
+}
+
+// TestDeedsOf lists a user's seeded test deeds, oldest first.
+func (s *Store) TestDeedsOf(ctx context.Context, username string) ([]models.Deed, error) {
+	return db.All[models.Deed](ctx, s.q(), `SELECT `+deedCols+` FROM deeds_deed
+		WHERE owner_id = (SELECT id FROM auth_user WHERE username = $1) AND is_test AND title LIKE 'Test deed%' ORDER BY id`, username)
+}
+
+// DeedHoldingToken is the most recently updated deed that holds a portal token.
+func (s *Store) DeedHoldingToken(ctx context.Context, token string) (*models.Deed, error) {
+	d, err := db.One[models.Deed](ctx, s.q(), `SELECT `+deedCols+` FROM deeds_deed WHERE token_number = $1
+		ORDER BY updated_at DESC LIMIT 1`, token)
+	if errors.Is(err, db.ErrNotFound) {
+		return nil, nil
+	}
+	return d, err
+}
+
+// DeleteScreenshots removes a deed's stored screenshot rows.
+func (s *Store) DeleteScreenshots(ctx context.Context, deedID int64) error {
+	_, err := s.q().Exec(ctx, `DELETE FROM deeds_deedscreenshot WHERE deed_id = $1`, deedID)
+	return err
+}
+
+// RecentScreenshots lists a deed's newest screenshots first.
+func (s *Store) RecentScreenshots(ctx context.Context, deedID int64, limit int) ([]models.DeedScreenshot, error) {
+	return db.All[models.DeedScreenshot](ctx, s.q(), `SELECT `+shotCols+` FROM deeds_deedscreenshot
+		WHERE deed_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2`, deedID, limit)
+}
+
+// StartSubmission puts a deed in the "submitting" state without touching its heartbeat.
+func (s *Store) StartSubmission(ctx context.Context, id int64) error {
+	_, err := s.q().Exec(ctx, `UPDATE deeds_deed SET status = 'submitting', progress = 0 WHERE id = $1`, id)
 	return err
 }
