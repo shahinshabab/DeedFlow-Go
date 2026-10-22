@@ -1,8 +1,9 @@
 name: Deploy
 
+# Manual only for now: the runner, .env and compose project are the ones the
+# Django site deploys with, so a push must not swap production over to Go by
+# itself. Run it from the Actions tab when the switch is wanted.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
