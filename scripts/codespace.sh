@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Runs DeedFlow in a GitHub Codespace (or any Debian/Ubuntu machine with sudo):
+# Runs DeedFlow in a GitHub Codespace (or any machine with Docker and Go):
 #
 #   bash scripts/codespace.sh
 #
-# It installs Postgres (and the OCR tools) if they are missing, builds the
+# It starts Postgres in Docker, installs the OCR tools when it can, builds the
 # binary, starts the web server and worker on port 8001, and makes sure there
 # is a login "admin" with password "admin" (a site administrator and the admin
 # of an organization). In a Codespace open port 8001 from the Ports tab or the
@@ -11,7 +11,7 @@
 #
 # The app runs directly in the Codespace, not in Docker Compose: container to
 # container networking is unreliable in Codespaces (the web container timed
-# out reaching the database container).
+# out reaching the database container). Nothing here needs a sudo password.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -58,36 +58,71 @@ set -a
 # shellcheck disable=SC1091
 . ./.env
 set +a
-# Here the database is the local Postgres, not the compose "db" service.
-export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5432 HTTP_ADDR=":${PORT}" MEDIA_ROOT="$PWD/media"
+# Here the database is the Postgres container on the host network, not the
+# compose "db" service.
+unset DATABASE_URL
+export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 HTTP_ADDR=":${PORT}" MEDIA_ROOT="$PWD/media"
 export TESSERACT_CMD="$(command -v tesseract || echo /usr/bin/tesseract)"
 
 # --- Postgres and tools -----------------------------------------------------
+# Postgres runs in Docker on the host network (no sudo needed, and no
+# container-to-container networking, which is what failed in Codespaces).
+# It listens on 5434 so it never meets another Postgres already on 5432.
+DB_PORT=5434
+DB_CONTAINER=deedflow-codespace-pg
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker isn't installed here; the default Codespace image has it." >&2
+  exit 1
+fi
+# The container from an earlier version of this script listened on 5432.
+docker rm -f deedflow-codespace-db >/dev/null 2>&1 || true
+if [ "$(docker container inspect -f '{{.State.Running}}' "$DB_CONTAINER" 2>/dev/null)" != "true" ]; then
+  docker rm -f "$DB_CONTAINER" >/dev/null 2>&1 || true
+  echo "Starting Postgres"
+  docker run -d --name "$DB_CONTAINER" --network host --restart unless-stopped \
+    -e POSTGRES_DB="$POSTGRES_DB" -e POSTGRES_USER="$POSTGRES_USER" \
+    -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+    -v deedflow_codespace_pg:/var/lib/postgresql/data \
+    postgres:16-alpine -p "$DB_PORT" >/dev/null
+fi
+echo -n "Waiting for Postgres"
+db_up=
+for _ in $(seq 1 60); do
+  if docker exec "$DB_CONTAINER" pg_isready -q -h 127.0.0.1 -p "$DB_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" 2>/dev/null; then
+    db_up=1
+    echo " - up"
+    break
+  fi
+  echo -n "."
+  sleep 1
+done
+if [ -z "$db_up" ]; then
+  echo
+  echo "Postgres didn't start. Its log:" >&2
+  docker logs --tail 40 "$DB_CONTAINER" >&2 || true
+  exit 1
+fi
+# The data volume keeps the password it was created with; set it to the one in
+# .env (over the container's socket, which needs no password).
+docker exec -i "$DB_CONTAINER" psql -q -v ON_ERROR_STOP=1 -p "$DB_PORT" \
+  -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null <<SQL
+ALTER USER "$POSTGRES_USER" WITH PASSWORD '$POSTGRES_PASSWORD';
+SQL
+
+# OCR tools are only needed to process uploaded PDFs and solve the portal
+# captcha; install them when sudo works without a password.
 missing=()
-command -v pg_ctlcluster >/dev/null 2>&1 || missing+=(postgresql)
 command -v tesseract >/dev/null 2>&1 || missing+=(tesseract-ocr)
 command -v pdftoppm >/dev/null 2>&1 || missing+=(poppler-utils)
 if [ ${#missing[@]} -gt 0 ]; then
-  echo "Installing ${missing[*]}"
-  sudo apt-get update -qq
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >/dev/null
-  export TESSERACT_CMD="$(command -v tesseract || echo /usr/bin/tesseract)"
-fi
-
-echo "Starting Postgres"
-sudo service postgresql start >/dev/null
-for _ in $(seq 1 30); do
-  sudo -u postgres psql -qtAc 'SELECT 1' >/dev/null 2>&1 && break
-  sleep 1
-done
-sudo -u postgres psql -q -v ON_ERROR_STOP=1 \
-  -v user="$POSTGRES_USER" -v pass="$POSTGRES_PASSWORD" <<'SQL'
-SELECT format('CREATE ROLE %I LOGIN', :'user')
- WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'user') \gexec
-ALTER ROLE :"user" WITH LOGIN PASSWORD :'pass';
-SQL
-if ! sudo -u postgres psql -qtAc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB}'" | grep -q 1; then
-  sudo -u postgres createdb -O "$POSTGRES_USER" "$POSTGRES_DB"
+  if sudo -n true 2>/dev/null; then
+    echo "Installing ${missing[*]}"
+    sudo apt-get update -qq
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >/dev/null
+    export TESSERACT_CMD="$(command -v tesseract || echo /usr/bin/tesseract)"
+  else
+    echo "Note: ${missing[*]} not installed (no sudo); the site works, PDF processing won't."
+  fi
 fi
 
 # --- build and start --------------------------------------------------------

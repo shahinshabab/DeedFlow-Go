@@ -63,7 +63,8 @@ database tables when it starts.
 bash scripts/codespace.sh
 ```
 
-installs Postgres, Tesseract and poppler if they are missing, writes a `.env` (random secrets, the
+starts Postgres in Docker (on the host network), installs Tesseract and poppler when sudo needs no
+password, writes a `.env` (random secrets, the
 Codespace's forwarded address allowed), builds the binary and runs the web server and worker on port
 8001 (log in `deedflow.log`), and makes sure the login **admin** / **admin** exists (site
 administrator and admin of an organization). Open port 8001 from the Ports tab, or the address the
