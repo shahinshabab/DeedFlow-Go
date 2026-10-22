@@ -1,12 +1,16 @@
 package web
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/textproto"
 	"net/url"
 	"os"
 	"strings"
@@ -100,6 +104,11 @@ func (s *site) cleanup() {
 		q(`DELETE FROM `+r.table+` WHERE `+r.col+` IN (`+sub+`)`, s.users, s.orgs)
 	}
 	q(`DELETE FROM deeds_deed WHERE owner_id = ANY($1) OR organization_id = ANY($2)`, s.users, s.orgs)
+	q(`DELETE FROM ledger_expensebill WHERE expense_id IN (SELECT id FROM ledger_expense WHERE organization_id = ANY($1))`, s.orgs)
+	q(`DELETE FROM ledger_expense WHERE organization_id = ANY($1)`, s.orgs)
+	q(`DELETE FROM ledger_paymentreceipt WHERE token_id IN (SELECT id FROM ledger_registeredtoken WHERE organization_id = ANY($1))`, s.orgs)
+	q(`DELETE FROM ledger_registeredtoken WHERE organization_id = ANY($1)`, s.orgs)
+	q(`DELETE FROM ledger_receiptsyncrun WHERE organization_id = ANY($1)`, s.orgs)
 	q(`DELETE FROM accounts_portalcredential WHERE organization_id = ANY($1)`, s.orgs)
 	q(`DELETE FROM accounts_membership WHERE organization_id = ANY($1) OR user_id = ANY($2)`, s.orgs, s.users)
 	q(`DELETE FROM accounts_organization WHERE id = ANY($1)`, s.orgs)
@@ -201,6 +210,39 @@ func (c *client) post(path string, form map[string]string) response {
 	}
 	req, _ := http.NewRequest("POST", c.s.srv.URL+path, strings.NewReader(v.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return c.do(req)
+}
+
+// filePart is a file part of a multipart form.
+type filePart struct {
+	field, name, contentType string
+	data                     []byte
+}
+
+// postForm posts a multipart form (repeated values allowed) with files.
+func (c *client) postForm(path string, form map[string][]string, files ...filePart) response {
+	c.t.Helper()
+	if c.cookie(csrfCookie) == "" {
+		c.get("/login/")
+	}
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	_ = w.WriteField("csrfmiddlewaretoken", maskCSRF(c.cookie(csrfCookie)))
+	for k, vals := range form {
+		for _, v := range vals {
+			_ = w.WriteField(k, v)
+		}
+	}
+	for _, f := range files {
+		h := textproto.MIMEHeader{}
+		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, f.field, f.name))
+		h.Set("Content-Type", f.contentType)
+		part, _ := w.CreatePart(h)
+		_, _ = part.Write(f.data)
+	}
+	_ = w.Close()
+	req, _ := http.NewRequest("POST", c.s.srv.URL+path, &buf)
+	req.Header.Set("Content-Type", w.FormDataContentType())
 	return c.do(req)
 }
 
