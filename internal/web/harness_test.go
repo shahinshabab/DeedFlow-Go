@@ -25,6 +25,7 @@ import (
 	"github.com/shahinshabab/deedflow-go/internal/jobs"
 	"github.com/shahinshabab/deedflow-go/internal/models"
 	"github.com/shahinshabab/deedflow-go/internal/store"
+	"golang.org/x/net/html"
 )
 
 // The page tests below are the Go counterparts of the Django project's
@@ -330,4 +331,93 @@ func newJSONRequest(url string, body []byte, csrf string) (*http.Request, error)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-CSRFToken", csrf)
 	return req, nil
+}
+
+// formValues reads the values a browser would submit for the inputs, selects
+// and textareas of a page whose names start with prefix.
+func formValues(t *testing.T, body, prefix string) url.Values {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := url.Values{}
+	attr := func(n *html.Node, key string) (string, bool) {
+		for _, a := range n.Attr {
+			if a.Key == key {
+				return a.Val, true
+			}
+		}
+		return "", false
+	}
+	text := func(n *html.Node) string {
+		var b strings.Builder
+		var walk func(*html.Node)
+		walk = func(n *html.Node) {
+			if n.Type == html.TextNode {
+				b.WriteString(n.Data)
+			}
+			for c := n.FirstChild; c != nil; c = c.NextSibling {
+				walk(c)
+			}
+		}
+		walk(n)
+		return b.String()
+	}
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			name, _ := attr(n, "name")
+			if strings.HasPrefix(name, prefix) {
+				switch n.Data {
+				case "input":
+					typ, _ := attr(n, "type")
+					val, _ := attr(n, "value")
+					_, checked := attr(n, "checked")
+					if (typ == "checkbox" || typ == "radio") && !checked {
+						break
+					}
+					if typ != "submit" && typ != "button" && typ != "file" {
+						out.Add(name, val)
+					}
+				case "textarea":
+					out.Add(name, strings.TrimPrefix(text(n), "\n"))
+				case "select":
+					chosen, haveFirst, haveSelected := "", false, false
+					var scan func(*html.Node)
+					scan = func(m *html.Node) {
+						for o := m.FirstChild; o != nil; o = o.NextSibling {
+							if o.Type != html.ElementNode {
+								continue
+							}
+							if o.Data == "optgroup" {
+								scan(o)
+								continue
+							}
+							if o.Data != "option" {
+								continue
+							}
+							v, ok := attr(o, "value")
+							if !ok {
+								v = text(o)
+							}
+							if !haveFirst {
+								chosen, haveFirst = v, true
+							}
+							if _, sel := attr(o, "selected"); sel && !haveSelected {
+								chosen, haveSelected = v, true
+							}
+						}
+					}
+					scan(n)
+					out.Add(name, chosen)
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+	return out
 }
