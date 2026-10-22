@@ -355,43 +355,57 @@ func (c *Ctx) begin() bool {
 	}
 
 	// CSRF secret cookie.
+	hadCookie := false
 	if ck, err := c.R.Cookie(csrfCookie); err == nil && validCSRFSecret(ck.Value) {
 		c.csrfSecret = ck.Value
+		hadCookie = true
 	} else {
 		c.csrfSecret = newCSRFSecret()
 		c.setCookie(csrfCookie, c.csrfSecret, csrfAge, false)
 	}
 	c.csrfToken = maskCSRF(c.csrfSecret)
 
-	if !isSafeMethod(c.R.Method) && !c.csrfOK() {
-		a.Log.Warn("csrf failure", "path", c.R.URL.Path)
-		http.Error(c.W, "403 Forbidden: CSRF verification failed. Request aborted.", http.StatusForbidden)
-		return false
+	if !isSafeMethod(c.R.Method) {
+		if reason := c.csrfFailure(hadCookie); reason != "" {
+			a.Log.Warn("csrf failure", "path", c.R.URL.Path, "reason", reason,
+				"origin", c.R.Header.Get("Origin"), "referer", c.R.Header.Get("Referer"),
+				"host", c.R.Host, "forwarded_host", c.R.Header.Get("X-Forwarded-Host"),
+				"site_url", a.Cfg.SiteURL)
+			http.Error(c.W, "403 Forbidden: CSRF verification failed. Request aborted.", http.StatusForbidden)
+			return false
+		}
 	}
 	return true
 }
 
-func (c *Ctx) csrfOK() bool {
+// csrfFailure says why a POST fails the CSRF check, or "" when it passes.
+func (c *Ctx) csrfFailure(hadCookie bool) string {
 	if origin := c.R.Header.Get("Origin"); origin != "" && origin != "null" {
 		u, err := url.Parse(origin)
 		if err != nil || !c.trustedHost(u.Host) {
-			return false
+			return "origin doesn't match the host"
 		}
 	} else if c.isSecure() {
 		ref := c.R.Header.Get("Referer")
 		if ref == "" {
-			return false
+			return "no referer"
 		}
 		u, err := url.Parse(ref)
 		if err != nil || !c.trustedHost(u.Host) {
-			return false
+			return "referer doesn't match the host"
 		}
+	}
+	if !hadCookie {
+		return "no csrftoken cookie"
 	}
 	token := c.R.Header.Get("X-CSRFToken")
 	if token == "" {
 		token = c.PostForm().Get("csrfmiddlewaretoken")
 	}
-	return csrfEqual(c.csrfSecret, token)
+	if !csrfEqual(c.csrfSecret, token) {
+		return "token doesn't match the cookie"
+	}
+	return ""
 }
 
 // trustedHost accepts the request's own host and the host of SITE_URL. Behind
