@@ -1,9 +1,8 @@
 name: Deploy
 
-# Manual only for now: the runner, .env and compose project are the ones the
-# Django site deploys with, so a push must not swap production over to Go by
-# itself. Run it from the Actions tab when the switch is wanted.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -12,27 +11,29 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, deedflow]
+    # Its own runner, .env and compose project: the Django DeedFlow deploys
+    # separately and nothing here may touch it.
+    runs-on: [self-hosted, deedflow-go]
     steps:
       - uses: actions/checkout@v4
 
       # The production .env lives only on the server, never in the repo.
       - name: Load production .env
-        run: cp /home/ubuntu/deedflow/.env .env
+        run: cp /home/ubuntu/deedflow-go/.env .env
 
       - name: Build and start
-        run: docker compose -p deedflow -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans
+        run: docker compose -p deedflow-go -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans
 
       - name: Wait for web
         run: |
           for i in $(seq 1 30); do
-            if docker compose -p deedflow -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
+            if docker compose -p deedflow-go -f docker-compose.yml -f docker-compose.prod.yml exec -T web \
                 curl -fsS -o /dev/null http://localhost:8000/login/ 2>/dev/null; then
               echo "web is up"; exit 0
             fi
             sleep 5
           done
-          docker compose -p deedflow -f docker-compose.yml -f docker-compose.prod.yml logs --tail=80 web
+          docker compose -p deedflow-go -f docker-compose.yml -f docker-compose.prod.yml logs --tail=80 web
           exit 1
 
       - name: Clean up old images
