@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/shahinshabab/deedflow-go/internal/config"
+	"github.com/shahinshabab/deedflow-go/internal/db"
 	"github.com/shahinshabab/deedflow-go/internal/deeds"
 	"github.com/shahinshabab/deedflow-go/internal/events"
 	"github.com/shahinshabab/deedflow-go/internal/models"
@@ -98,7 +99,7 @@ func submitFixture(t *testing.T, fp *fakePortal) (*Env, *models.Deed, *store.Sto
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_, _ = d.Pool.Exec(ctx, `DELETE FROM deeds_deed WHERE owner_id = $1`, u.ID)
+		purgeDeeds(ctx, d, u.ID)
 		_, _ = d.Pool.Exec(ctx, `DELETE FROM accounts_portalcredential WHERE organization_id = $1`, org.ID)
 		_, _ = d.Pool.Exec(ctx, `DELETE FROM accounts_membership WHERE organization_id = $1`, org.ID)
 		_, _ = d.Pool.Exec(ctx, `DELETE FROM accounts_organization WHERE id = $1`, org.ID)
@@ -269,4 +270,26 @@ func TestSubmitDeedGuards(t *testing.T) {
 	if got.Status != models.StatusFailed || !strings.HasPrefix(got.ResultMessage, "Not sent to the portal - please fix first") || len(fp.submits) != 0 {
 		t.Fatalf("pre-flight: %s %q", got.Status, got.ResultMessage)
 	}
+}
+
+// purgeDeeds deletes a user's deeds with every row that points at them.
+func purgeDeeds(ctx context.Context, d *db.DB, ownerID int64) {
+	rows, err := d.Pool.Query(ctx, `SELECT conrelid::regclass::text, a.attname FROM pg_constraint c
+		JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+		WHERE c.contype = 'f' AND c.confrelid = 'deeds_deed'::regclass`)
+	if err != nil {
+		return
+	}
+	type ref struct{ table, col string }
+	var refs []ref
+	for rows.Next() {
+		var r ref
+		_ = rows.Scan(&r.table, &r.col)
+		refs = append(refs, r)
+	}
+	rows.Close()
+	for _, r := range refs {
+		_, _ = d.Pool.Exec(ctx, `DELETE FROM `+r.table+` WHERE `+r.col+` IN (SELECT id FROM deeds_deed WHERE owner_id = $1)`, ownerID)
+	}
+	_, _ = d.Pool.Exec(ctx, `DELETE FROM deeds_deed WHERE owner_id = $1`, ownerID)
 }
