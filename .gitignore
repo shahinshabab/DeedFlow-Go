@@ -6,7 +6,7 @@
 
 # Env and data
 .env
-media/
+/media/
 postgres_data/
 
 # Editors
