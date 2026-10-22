@@ -2,11 +2,14 @@ package pipeline
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/shahinshabab/deedflow-go/internal/deeds"
+	"github.com/shahinshabab/deedflow-go/internal/models"
 	"github.com/shahinshabab/deedflow-go/internal/store"
 )
 
@@ -187,5 +190,33 @@ func TestPresenterDefaultsFillTodayAndFiveSheets(t *testing.T) {
 	deeds.ApplyPresenterDefaults(p, today())
 	if !p.StampDate.Equal(keep) || *p.DocumentSheetCount != 8 {
 		t.Errorf("the user's stamp date and sheets were overwritten")
+	}
+}
+
+// Port of PdfUploadTests.test_text_less_pdf_fails_with_a_clear_message.
+func TestTextLessPDFFailsWithAClearMessage(t *testing.T) {
+	env, deed, st := submitFixture(t, &fakePortal{})
+	ctx := context.Background()
+	// A page with nothing on it, as a scan without a text layer would extract.
+	pdf := "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n" +
+		"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\ntrailer\n<< /Size 4 /Root 1 0 R >>\n%%EOF\n"
+	if err := os.MkdirAll(filepath.Join(env.Cfg.MediaRoot, "deeds"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(env.Cfg.MediaRoot, "deeds", "scan.pdf"), []byte(pdf), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := "deeds/scan.pdf"
+	deed.SourcePDF, deed.Status = &src, models.StatusExtracting
+	if err := st.SaveDeed(ctx, deed, "source_pdf", "status"); err != nil {
+		t.Fatal(err)
+	}
+	err := env.ProcessDeedPDF(ctx, deed.ID)
+	if err == nil || !strings.Contains(err.Error(), "No text could be read") {
+		t.Fatalf("err = %v", err)
+	}
+	got, _ := st.DeedByID(ctx, deed.ID)
+	if got.Status != models.StatusFailed || !strings.Contains(got.ResultMessage, "No text could be read") || !ProcessingFailed(got) {
+		t.Errorf("deed = %s %q", got.Status, got.ResultMessage)
 	}
 }

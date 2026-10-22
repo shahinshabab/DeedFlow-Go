@@ -117,8 +117,18 @@ tools/                 comparison and oracle scripts (see Testing)
 go test ./...
 ```
 
-Tests that need a database use `TEST_DATABASE_URL`; the browser tests start `chromedriver`
-(`CHROMEDRIVER`, `CHROME_BIN`) against a mock portal and skip when no matching browser exists.
+Tests that need a database use `TEST_DATABASE_URL` (the compose database by default) and skip when
+it can't be reached. The page tests (`internal/web/*_test.go`) are the Go counterparts of the Django
+project's `tests.py` files: they drive the real application over HTTP (real login form, CSRF,
+uploads) and remove what they create; the few that replace shared tables (the scraped portal
+options, queued jobs) run on a scratch database that is created and dropped for the test, so the
+database user needs `CREATEDB`. The rest of the Django tests live next to the code they test:
+accounts and `setup_organization` (`internal/web`, `internal/cli`), payload rules, placeholders and
+preflight (`internal/deeds`), table extraction (`internal/extract`), submission and row-edit
+scenarios against a scripted portal (`internal/pipeline`), receipt collection (`internal/ledger`),
+and the AI provider choice (`internal/ai`). Tests that convert PageMaker files need `pmd2json` on
+`PATH` and skip without it; the browser tests start `chromedriver` (`CHROMEDRIVER`, `CHROME_BIN`)
+against a mock portal and skip when no matching browser exists.
 
 Because the aim is behaviour identical to the Django site, much of the verification compares the two:
 
