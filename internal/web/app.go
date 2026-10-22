@@ -374,7 +374,7 @@ func (c *Ctx) begin() bool {
 func (c *Ctx) csrfOK() bool {
 	if origin := c.R.Header.Get("Origin"); origin != "" && origin != "null" {
 		u, err := url.Parse(origin)
-		if err != nil || !c.sameHost(u.Host) {
+		if err != nil || !c.trustedHost(u.Host) {
 			return false
 		}
 	} else if c.isSecure() {
@@ -383,7 +383,7 @@ func (c *Ctx) csrfOK() bool {
 			return false
 		}
 		u, err := url.Parse(ref)
-		if err != nil || !c.sameHost(u.Host) {
+		if err != nil || !c.trustedHost(u.Host) {
 			return false
 		}
 	}
@@ -392,6 +392,21 @@ func (c *Ctx) csrfOK() bool {
 		token = c.PostForm().Get("csrfmiddlewaretoken")
 	}
 	return csrfEqual(c.csrfSecret, token)
+}
+
+// trustedHost accepts the request's own host and the host of SITE_URL. Behind
+// a proxy that doesn't pass the public host on (a Codespace's forwarded port
+// reaches the app as localhost), SITE_URL is the only way to know it.
+func (c *Ctx) trustedHost(h string) bool {
+	return c.sameHost(h) || c.App.siteHost() != "" && strings.EqualFold(h, c.App.siteHost())
+}
+
+func (a *App) siteHost() string {
+	u, err := url.Parse(a.Cfg.SiteURL)
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }
 
 func (c *Ctx) sameHost(h string) bool {
