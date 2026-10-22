@@ -335,11 +335,15 @@ func (a *App) deedStatusSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// originPatterns allows the page's own host (the AllowedHostsOriginValidator).
+// originPatterns allows the page's own host (the AllowedHostsOriginValidator)
+// and the host of SITE_URL.
 func (a *App) originPatterns(r *http.Request) []string {
 	host := r.Host
 	if xf := r.Header.Get("X-Forwarded-Host"); xf != "" {
 		host = xf
+	}
+	if site := a.siteHost(); site != "" && !strings.EqualFold(site, host) {
+		return []string{host, site}
 	}
 	return []string{host}
 }
