@@ -46,12 +46,48 @@ type site struct {
 	tag   string
 }
 
-func newSite(t *testing.T) *site {
-	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		url = "postgres://deedflow:deedflow@127.0.0.1:5433/deedflow"
+func testDatabaseURL() string {
+	if url := os.Getenv("TEST_DATABASE_URL"); url != "" {
+		return url
 	}
+	return "postgres://deedflow:deedflow@127.0.0.1:5433/deedflow"
+}
+
+// newSite runs the app against the shared test database; every test cleans up
+// the rows it creates.
+func newSite(t *testing.T) *site { return newSiteAt(t, testDatabaseURL()) }
+
+// newIsolatedSite runs the app against a database created for this test alone
+// (and dropped afterwards), for tests that replace shared tables such as the
+// scraped portal options.
+func newIsolatedSite(t *testing.T) *site {
+	t.Helper()
+	base := testDatabaseURL()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	admin, err := db.Connect(ctx, base)
+	if err != nil {
+		t.Skip("no test database: ", err)
+	}
+	name := "deedflow_test_" + strings.ReplaceAll(store.NewUUID()[:12], "-", "")
+	if _, err := admin.Pool.Exec(ctx, `CREATE DATABASE `+name); err != nil {
+		admin.Close()
+		t.Skip("cannot create a scratch database: ", err)
+	}
+	t.Cleanup(func() {
+		_, _ = admin.Pool.Exec(context.Background(), `DROP DATABASE IF EXISTS `+name+` WITH (FORCE)`)
+		admin.Close()
+	})
+	u, err := url.Parse(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.Path = "/" + name
+	return newSiteAt(t, u.String())
+}
+
+func newSiteAt(t *testing.T, url string) *site {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	d, err := db.Connect(ctx, url)
