@@ -21,6 +21,7 @@ import (
 	"github.com/shahinshabab/deedflow-go/internal/forms"
 	"github.com/shahinshabab/deedflow-go/internal/models"
 	"github.com/shahinshabab/deedflow-go/internal/store"
+	"github.com/shahinshabab/deedflow-go/internal/testdb"
 )
 
 type elem struct {
@@ -277,17 +278,7 @@ func setAny(f reflect.Value, v any) error {
 }
 
 func testStore(t *testing.T) (*store.Store, *db.DB) {
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		url = "postgres://deedflow:deedflow@127.0.0.1:5433/deedflow"
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	d, err := db.Connect(ctx, url)
-	if err != nil {
-		t.Skip("no test database: ", err)
-	}
-	t.Cleanup(d.Close)
+	d := testdb.Open(t)
 	return store.New(d), d
 }
 

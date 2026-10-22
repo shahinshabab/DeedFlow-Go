@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -24,13 +23,6 @@ func sample(t *testing.T, name string) []byte {
 		t.Fatal(err)
 	}
 	return b
-}
-
-func needPMD2JSON(t *testing.T) {
-	t.Helper()
-	if _, err := exec.LookPath("pmd2json"); err != nil {
-		t.Skip("pmd2json isn't installed (it's built in the Docker image)")
-	}
 }
 
 func fileForm(c *client, path string, extra map[string][]string, files ...filePart) response {
@@ -77,7 +69,6 @@ func TestConvertOnlyPageMakerFiles(t *testing.T) {
 }
 
 func TestConvertDownloadsScriptForCS3(t *testing.T) {
-	needPMD2JSON(t)
 	s := newSite(t)
 	c := s.client().login(s.user("conv"))
 	r := fileForm(c, s.rev("filereader:index"), map[string][]string{"action": {"jsx"}},
@@ -88,7 +79,6 @@ func TestConvertDownloadsScriptForCS3(t *testing.T) {
 }
 
 func TestConvertManyFilesMakeOneScript(t *testing.T) {
-	needPMD2JSON(t)
 	s := newSite(t)
 	c := s.client().login(s.user("conv"))
 	pmd := sample(t, "sample.pmd")
@@ -108,7 +98,6 @@ func TestConvertManyFilesMakeOneScript(t *testing.T) {
 }
 
 func TestConvertManyFilesMakeAZipOfIdml(t *testing.T) {
-	needPMD2JSON(t)
 	s := newSite(t)
 	c := s.client().login(s.user("conv"))
 	pmd := sample(t, "sample.pmd")
@@ -151,7 +140,6 @@ func TestConvertManyFilesNoneConvertible(t *testing.T) {
 }
 
 func TestConvertDownloadsIdml(t *testing.T) {
-	needPMD2JSON(t)
 	s := newSite(t)
 	c := s.client().login(s.user("conv"))
 	r := fileForm(c, s.rev("filereader:index"), map[string][]string{"action": {"idml"}},

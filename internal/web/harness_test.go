@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"net/textproto"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +24,7 @@ import (
 	"github.com/shahinshabab/deedflow-go/internal/jobs"
 	"github.com/shahinshabab/deedflow-go/internal/models"
 	"github.com/shahinshabab/deedflow-go/internal/store"
+	"github.com/shahinshabab/deedflow-go/internal/testdb"
 	"golang.org/x/net/html"
 )
 
@@ -47,12 +47,7 @@ type site struct {
 	tag   string
 }
 
-func testDatabaseURL() string {
-	if url := os.Getenv("TEST_DATABASE_URL"); url != "" {
-		return url
-	}
-	return "postgres://deedflow:deedflow@127.0.0.1:5433/deedflow"
-}
+func testDatabaseURL() string { return testdb.URL() }
 
 // newSite runs the app against the shared test database; every test cleans up
 // the rows it creates.

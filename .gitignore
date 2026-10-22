@@ -16,3 +16,4 @@ postgres_data/
 # Portal reconnaissance notes (internal structure of a live government system - never publish)
 sitemap.md
 dump.rdb
+__pycache__/

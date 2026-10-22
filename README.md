@@ -57,6 +57,17 @@ database tables when it starts.
 | Adminer (Postgres browser) | http://localhost:8083 (System: PostgreSQL, Server: `db`) |
 | Selenium noVNC (watch the browser during a submission) | http://localhost:7900, password `secret` |
 
+### In a GitHub Codespace
+
+```bash
+bash scripts/codespace.sh
+```
+
+writes a `.env` (random secrets, the Codespace's forwarded address allowed), starts the database,
+web server and worker with Docker Compose, and makes sure the login **admin** / **admin** exists
+(site administrator and admin of an organization). Open port 8001 from the Ports tab, or the address
+the script prints. Run it again at any time; it keeps the data and resets admin's password to `admin`.
+
 ### Without Docker
 
 You need Go 1.25+, a Postgres database, Tesseract (`tesseract`) and poppler (`pdftoppm`); a
@@ -126,8 +137,9 @@ database user needs `CREATEDB`. The rest of the Django tests live next to the co
 accounts and `setup_organization` (`internal/web`, `internal/cli`), payload rules, placeholders and
 preflight (`internal/deeds`), table extraction (`internal/extract`), submission and row-edit
 scenarios against a scripted portal (`internal/pipeline`), receipt collection (`internal/ledger`),
-and the AI provider choice (`internal/ai`). Tests that convert PageMaker files need `pmd2json` on
-`PATH` and skip without it; the browser tests start `chromedriver` (`CHROMEDRIVER`, `CHROME_BIN`)
+and the AI provider choice (`internal/ai`). Each test that uses the database brings its tables up to
+date first, so an empty database works. The comparison of `internal/pmd` with the C++ `pmd2json`
+needs `pmd2json` on `PATH` and skips without it; the browser tests start `chromedriver` (`CHROMEDRIVER`, `CHROME_BIN`)
 against a mock portal and skip when no matching browser exists.
 
 Because the aim is behaviour identical to the Django site, much of the verification compares the two:

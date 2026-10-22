@@ -18,21 +18,11 @@ import (
 	"github.com/shahinshabab/deedflow-go/internal/events"
 	"github.com/shahinshabab/deedflow-go/internal/models"
 	"github.com/shahinshabab/deedflow-go/internal/store"
+	"github.com/shahinshabab/deedflow-go/internal/testdb"
 )
 
 func testDB(t *testing.T) *db.DB {
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		url = "postgres://deedflow:deedflow@127.0.0.1:5433/deedflow"
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	d, err := db.Connect(ctx, url)
-	if err != nil {
-		t.Skip("no test database: ", err)
-	}
-	t.Cleanup(d.Close)
-	return d
+	return testdb.Open(t)
 }
 
 func TestProcessDeedPDF(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	"github.com/shahinshabab/deedflow-go/internal/models"
 	"github.com/shahinshabab/deedflow-go/internal/portal"
 	"github.com/shahinshabab/deedflow-go/internal/store"
+	"github.com/shahinshabab/deedflow-go/internal/testdb"
 	"github.com/shahinshabab/deedflow-go/internal/web"
 )
 
@@ -74,14 +75,7 @@ type fixture struct {
 }
 
 func newFixture(t *testing.T) *fixture {
-	url := "postgres://deedflow:deedflow@127.0.0.1:5433/deedflow"
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	d, err := db.Connect(ctx, url)
-	if err != nil {
-		t.Skip("no test database: ", err)
-	}
-	t.Cleanup(d.Close)
+	d := testdb.Open(t)
 	bg := context.Background()
 	st := store.New(d)
 	admin := &models.User{Username: "ledger-test-" + store.NewUUID()[:8], Email: "boss@example.com", IsActive: true}
