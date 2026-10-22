@@ -17,3 +17,5 @@ postgres_data/
 sitemap.md
 dump.rdb
 __pycache__/
+deedflow.log
+deedflow.pid

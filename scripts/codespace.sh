@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
-# Runs DeedFlow in a GitHub Codespace (or any machine with Docker):
+# Runs DeedFlow in a GitHub Codespace (or any Debian/Ubuntu machine with sudo):
 #
 #   bash scripts/codespace.sh
 #
-# It writes a .env on the first run, starts the app with Docker Compose, and
-# makes sure there is a login "admin" with password "admin" (a site
-# administrator and the admin of an organization). The site is on port 8001;
-# in a Codespace open it from the Ports tab or the address printed at the end.
+# It installs Postgres (and the OCR tools) if they are missing, builds the
+# binary, starts the web server and worker on port 8001, and makes sure there
+# is a login "admin" with password "admin" (a site administrator and the admin
+# of an organization). In a Codespace open port 8001 from the Ports tab or the
+# address printed at the end.
+#
+# The app runs directly in the Codespace, not in Docker Compose: container to
+# container networking is unreliable in Codespaces (the web container timed
+# out reaching the database container).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -15,11 +20,8 @@ PORT=8001
 ADMIN_USER=admin
 ADMIN_PASSWORD=admin
 ORGANIZATION="DeedFlow Office"
-
-if ! command -v docker >/dev/null 2>&1; then
-  echo "Docker isn't installed here. Use a Codespace with Docker (the default image has it)." >&2
-  exit 1
-fi
+LOG=deedflow.log
+PIDFILE=deedflow.pid
 
 random() { openssl rand -hex 24; }
 
@@ -52,33 +54,87 @@ else
   site_url="http://localhost:${PORT}"
 fi
 
-# --- start --------------------------------------------------------------------
-echo "Building and starting DeedFlow (the first run takes a few minutes)"
-docker compose up -d --build db web worker
+set -a
+# shellcheck disable=SC1091
+. ./.env
+set +a
+# Here the database is the local Postgres, not the compose "db" service.
+export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5432 HTTP_ADDR=":${PORT}" MEDIA_ROOT="$PWD/media"
+export TESSERACT_CMD="$(command -v tesseract || echo /usr/bin/tesseract)"
+
+# --- Postgres and tools -----------------------------------------------------
+missing=()
+command -v pg_ctlcluster >/dev/null 2>&1 || missing+=(postgresql)
+command -v tesseract >/dev/null 2>&1 || missing+=(tesseract-ocr)
+command -v pdftoppm >/dev/null 2>&1 || missing+=(poppler-utils)
+if [ ${#missing[@]} -gt 0 ]; then
+  echo "Installing ${missing[*]}"
+  sudo apt-get update -qq
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >/dev/null
+  export TESSERACT_CMD="$(command -v tesseract || echo /usr/bin/tesseract)"
+fi
+
+echo "Starting Postgres"
+sudo service postgresql start >/dev/null
+for _ in $(seq 1 30); do
+  sudo -u postgres psql -qtAc 'SELECT 1' >/dev/null 2>&1 && break
+  sleep 1
+done
+sudo -u postgres psql -q -v ON_ERROR_STOP=1 \
+  -v user="$POSTGRES_USER" -v pass="$POSTGRES_PASSWORD" <<'SQL'
+SELECT format('CREATE ROLE %I LOGIN', :'user')
+ WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'user') \gexec
+ALTER ROLE :"user" WITH LOGIN PASSWORD :'pass';
+SQL
+if ! sudo -u postgres psql -qtAc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB}'" | grep -q 1; then
+  sudo -u postgres createdb -O "$POSTGRES_USER" "$POSTGRES_DB"
+fi
+
+# --- build and start --------------------------------------------------------
+echo "Building DeedFlow"
+GOTOOLCHAIN=auto go build -o bin/deedflow ./cmd/deedflow
+
+if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+  echo "Stopping the previous run"
+  kill "$(cat "$PIDFILE")" || true
+  sleep 2
+fi
+# An earlier Docker Compose run of this script may still hold the port.
+if command -v docker >/dev/null 2>&1 && docker compose ps -q 2>/dev/null | grep -q .; then
+  echo "Stopping the Docker Compose containers from an earlier run"
+  docker compose down >/dev/null 2>&1 || true
+fi
+
+echo "Starting the web server and worker (log: $LOG)"
+nohup bin/deedflow all >"$LOG" 2>&1 &
+echo $! >"$PIDFILE"
 
 echo -n "Waiting for the website"
-for _ in $(seq 1 120); do
-  if curl -fsS -o /dev/null "http://localhost:${PORT}/login/"; then
+for _ in $(seq 1 60); do
+  if curl -fsS -o /dev/null "http://localhost:${PORT}/login/" 2>/dev/null; then
     echo " - up"
     break
   fi
+  if ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    break
+  fi
   echo -n "."
-  sleep 2
+  sleep 1
 done
-if ! curl -fsS -o /dev/null "http://localhost:${PORT}/login/"; then
+if ! curl -fsS -o /dev/null "http://localhost:${PORT}/login/" 2>/dev/null; then
   echo
-  echo "The website didn't start. Its log:" >&2
-  docker compose logs --tail 50 web >&2
+  echo "The website didn't start. The end of $LOG:" >&2
+  tail -n 40 "$LOG" >&2
   exit 1
 fi
 
 # --- admin / admin -----------------------------------------------------------
 # A site administrator (for /admin/) ...
-docker compose exec -T web deedflow createsuperuser \
+bin/deedflow createsuperuser \
   --username "$ADMIN_USER" --email "admin@example.com" --password "$ADMIN_PASSWORD" >/dev/null 2>&1 || true
 # ... who is also the admin of an organization (for the deeds and accounts
 # pages). Run again, this keeps the organization and resets the password.
-printf '%s\n' "$ADMIN_PASSWORD" | docker compose exec -T web deedflow setup_organization \
+printf '%s\n' "$ADMIN_PASSWORD" | bin/deedflow setup_organization \
   "$ORGANIZATION" --admin "$ADMIN_USER" --set-password >/dev/null
 
 cat <<EOF
@@ -89,6 +145,6 @@ DeedFlow is running.
   Login:    ${ADMIN_USER} / ${ADMIN_PASSWORD}
   Admin:    ${site_url}/admin/
 
-Logs:  docker compose logs -f web worker
-Stop:  docker compose down
+Log:   tail -f $LOG
+Stop:  kill \$(cat $PIDFILE)
 EOF
