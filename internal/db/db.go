@@ -88,11 +88,8 @@ func (d *DB) Tx(ctx context.Context, fn func(tx pgx.Tx) error) error {
 // is the Django project's schema; it is skipped (but recorded) when the
 // database already has those tables, i.e. when adopting a Django database.
 func (d *DB) Migrate(ctx context.Context) error {
-	if _, err := d.Pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS deedflow_migrations (
-		name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`); err != nil {
-		return err
-	}
-	// Two processes starting together must not both migrate.
+	// Two processes starting together must not both migrate (nor both create
+	// the bookkeeping table: CREATE TABLE IF NOT EXISTS races too).
 	conn, err := d.Pool.Acquire(ctx)
 	if err != nil {
 		return err
@@ -102,6 +99,10 @@ func (d *DB) Migrate(ctx context.Context) error {
 		return err
 	}
 	defer conn.Exec(context.Background(), `SELECT pg_advisory_unlock(8472001)`)
+	if _, err := conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS deedflow_migrations (
+		name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`); err != nil {
+		return err
+	}
 
 	entries, err := fs.ReadDir(migrations.FS, ".")
 	if err != nil {
