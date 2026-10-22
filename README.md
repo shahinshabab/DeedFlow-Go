@@ -63,10 +63,13 @@ database tables when it starts.
 bash scripts/codespace.sh
 ```
 
-writes a `.env` (random secrets, the Codespace's forwarded address allowed), starts the database,
-web server and worker with Docker Compose, and makes sure the login **admin** / **admin** exists
-(site administrator and admin of an organization). Open port 8001 from the Ports tab, or the address
-the script prints. Run it again at any time; it keeps the data and resets admin's password to `admin`.
+installs Postgres, Tesseract and poppler if they are missing, writes a `.env` (random secrets, the
+Codespace's forwarded address allowed), builds the binary and runs the web server and worker on port
+8001 (log in `deedflow.log`), and makes sure the login **admin** / **admin** exists (site
+administrator and admin of an organization). Open port 8001 from the Ports tab, or the address the
+script prints. It runs the app directly rather than with Docker Compose, because containers can't
+always reach each other in a Codespace. Run it again at any time; it keeps the data, restarts the
+app and resets admin's password to `admin`.
 
 ### Without Docker
 
