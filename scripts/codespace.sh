@@ -60,36 +60,54 @@ set -a
 set +a
 # Here the database is the Postgres container on the host network, not the
 # compose "db" service.
-export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5432 HTTP_ADDR=":${PORT}" MEDIA_ROOT="$PWD/media"
+unset DATABASE_URL
+export POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=5434 HTTP_ADDR=":${PORT}" MEDIA_ROOT="$PWD/media"
 export TESSERACT_CMD="$(command -v tesseract || echo /usr/bin/tesseract)"
 
 # --- Postgres and tools -----------------------------------------------------
 # Postgres runs in Docker on the host network (no sudo needed, and no
 # container-to-container networking, which is what failed in Codespaces).
-DB_CONTAINER=deedflow-codespace-db
+# It listens on 5434 so it never meets another Postgres already on 5432.
+DB_PORT=5434
+DB_CONTAINER=deedflow-codespace-pg
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker isn't installed here; the default Codespace image has it." >&2
   exit 1
 fi
-if docker container inspect "$DB_CONTAINER" >/dev/null 2>&1; then
-  docker start "$DB_CONTAINER" >/dev/null
-else
+# The container from an earlier version of this script listened on 5432.
+docker rm -f deedflow-codespace-db >/dev/null 2>&1 || true
+if [ "$(docker container inspect -f '{{.State.Running}}' "$DB_CONTAINER" 2>/dev/null)" != "true" ]; then
+  docker rm -f "$DB_CONTAINER" >/dev/null 2>&1 || true
   echo "Starting Postgres"
   docker run -d --name "$DB_CONTAINER" --network host --restart unless-stopped \
     -e POSTGRES_DB="$POSTGRES_DB" -e POSTGRES_USER="$POSTGRES_USER" \
     -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
     -v deedflow_codespace_pg:/var/lib/postgresql/data \
-    postgres:16-alpine >/dev/null
+    postgres:16-alpine -p "$DB_PORT" >/dev/null
 fi
 echo -n "Waiting for Postgres"
+db_up=
 for _ in $(seq 1 60); do
-  if docker exec "$DB_CONTAINER" pg_isready -q -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" 2>/dev/null; then
+  if docker exec "$DB_CONTAINER" pg_isready -q -h 127.0.0.1 -p "$DB_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" 2>/dev/null; then
+    db_up=1
     echo " - up"
     break
   fi
   echo -n "."
   sleep 1
 done
+if [ -z "$db_up" ]; then
+  echo
+  echo "Postgres didn't start. Its log:" >&2
+  docker logs --tail 40 "$DB_CONTAINER" >&2 || true
+  exit 1
+fi
+# The data volume keeps the password it was created with; set it to the one in
+# .env (over the container's socket, which needs no password).
+docker exec -i "$DB_CONTAINER" psql -q -v ON_ERROR_STOP=1 -p "$DB_PORT" \
+  -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null <<SQL
+ALTER USER "$POSTGRES_USER" WITH PASSWORD '$POSTGRES_PASSWORD';
+SQL
 
 # OCR tools are only needed to process uploaded PDFs and solve the portal
 # captcha; install them when sudo works without a password.
