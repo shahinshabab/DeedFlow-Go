@@ -5,28 +5,17 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/shahinshabab/deedflow-go/internal/auth"
-	"github.com/shahinshabab/deedflow-go/internal/db"
 	"github.com/shahinshabab/deedflow-go/internal/models"
 	"github.com/shahinshabab/deedflow-go/internal/store"
+	"github.com/shahinshabab/deedflow-go/internal/testdb"
 )
 
 // Ports of SetupOrganizationCommandTests (accounts/tests.py).
 
 func testEnv(t *testing.T) (*Env, string) {
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		url = "postgres://deedflow:deedflow@127.0.0.1:5433/deedflow"
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	d, err := db.Connect(ctx, url)
-	if err != nil {
-		t.Skip("no test database: ", err)
-	}
-	t.Cleanup(d.Close)
+	d := testdb.Open(t)
 	return &Env{DB: d, Store: store.New(d)}, store.NewUUID()[:8]
 }
 
