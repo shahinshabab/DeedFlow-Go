@@ -109,6 +109,7 @@ func (s *site) cleanup() {
 	q(`DELETE FROM ledger_paymentreceipt WHERE token_id IN (SELECT id FROM ledger_registeredtoken WHERE organization_id = ANY($1))`, s.orgs)
 	q(`DELETE FROM ledger_registeredtoken WHERE organization_id = ANY($1)`, s.orgs)
 	q(`DELETE FROM ledger_receiptsyncrun WHERE organization_id = ANY($1)`, s.orgs)
+	q(`DELETE FROM filereader_filingsheet WHERE owner_id = ANY($1)`, s.users)
 	q(`DELETE FROM accounts_portalcredential WHERE organization_id = ANY($1)`, s.orgs)
 	q(`DELETE FROM accounts_membership WHERE organization_id = ANY($1) OR user_id = ANY($2)`, s.orgs, s.users)
 	q(`DELETE FROM accounts_organization WHERE id = ANY($1)`, s.orgs)
@@ -138,6 +139,17 @@ func (s *site) member(username string, o *models.Organization, role string) *mod
 	if err := s.st.CreateMembership(ctx, &models.Membership{UserID: u.ID, OrganizationID: o.ID, Role: role}); err != nil {
 		s.t.Fatal(err)
 	}
+	return u
+}
+
+// user is a user with no organization.
+func (s *site) user(username string) *models.User {
+	s.t.Helper()
+	u := &models.User{Username: username + "-" + s.tag, IsActive: true, Password: auth.MakePassword(testPassword)}
+	if err := s.st.CreateUser(context.Background(), u); err != nil {
+		s.t.Fatal(err)
+	}
+	s.users = append(s.users, u.ID)
 	return u
 }
 
@@ -272,4 +284,14 @@ func (s *site) rev(name string, args ...any) string {
 		s.t.Fatal(err)
 	}
 	return p
+}
+
+func newJSONRequest(url string, body []byte, csrf string) (*http.Request, error) {
+	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRFToken", csrf)
+	return req, nil
 }
