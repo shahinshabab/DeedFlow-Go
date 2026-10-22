@@ -79,7 +79,7 @@ func (f *fakePortal) SubmitRowEdits(p *deeds.Payload, plan deeds.RowPlan, token 
 
 func (f *fakePortal) Close() {}
 
-func submitFixture(t *testing.T, fp *fakePortal) (*Env, *models.Deed, *store.Store) {
+func submitFixture(t *testing.T, fp Portal) (*Env, *models.Deed, *store.Store) {
 	d := testDB(t)
 	ctx := context.Background()
 	st := store.New(d)
