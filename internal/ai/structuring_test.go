@@ -3,6 +3,13 @@ package ai
 import (
 	"os"
 	"testing"
+
+	"context"
+	"encoding/json"
+	"github.com/shahinshabab/deedflow-go/internal/config"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 )
 
 func TestSystemPromptMatchesPython(t *testing.T) {
@@ -31,5 +38,64 @@ func TestParseLenient(t *testing.T) {
 	}
 	if _, err := ParseExtracted([]byte(`{"giver":[{"house_name":"x"}]}`)); err == nil {
 		t.Fatal("missing name should fail")
+	}
+}
+
+// Ports of RealDeedExtractionTests.test_ai_nulls_for_missing_values_do_not_fail_extraction
+// and AiProviderTests (deeds/tests.py).
+func TestAINullsForMissingValuesDoNotFailExtraction(t *testing.T) {
+	data, err := ParseExtracted([]byte(`{
+	  "giver": [{"name": "വാസു", "age": "......", "pin": null}],
+	  "recipient": null,
+	  "previous_documents": [{"document_type": "രജിസ്റ്റർ/ഫയൽ ചെയ്ത", "sro": null, "year": "1,987"}],
+	  "other_details": {"document_price": null, "deed_type": null}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data.Giver[0].Age != nil || data.Giver[0].Pin != "" {
+		t.Errorf("giver = %+v", data.Giver[0])
+	}
+	if len(data.Recipient) != 0 {
+		t.Errorf("recipient = %+v", data.Recipient)
+	}
+	doc := data.PreviousDocuments[0]
+	if doc.SRO != "" || doc.Year == nil || *doc.Year != 1987 {
+		t.Errorf("previous document = %+v", doc)
+	}
+	if data.OtherDetails.DeedType != "" {
+		t.Errorf("deed type = %q", data.OtherDetails.DeedType)
+	}
+}
+
+func TestOpenAIOnlyUnlessTheClaudeFallbackIsOn(t *testing.T) {
+	var openAI, claude int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "openai") {
+			openAI++
+			_ = json.NewEncoder(w).Encode(map[string]any{"choices": []map[string]any{{"message": map[string]string{"content": "not json"}}}})
+			return
+		}
+		claude++
+		_ = json.NewEncoder(w).Encode(map[string]any{"content": []map[string]any{{"type": "tool_use", "input": map[string]any{
+			"giver": []map[string]any{{"name": "Claude's answer"}}}}}})
+	}))
+	defer srv.Close()
+	cfg := &config.Config{OpenAIAPIKey: "k", OpenAIModel: "m", AnthropicAPIKey: "k", AnthropicModel: "m"}
+	c := New(cfg)
+	c.OpenAIURL, c.AnthropicURL = srv.URL+"/openai", srv.URL+"/claude"
+
+	if _, err := c.StructureDeedText(context.Background(), "text"); err == nil {
+		t.Errorf("a bad OpenAI answer should fail without the fallback")
+	}
+	if claude != 0 {
+		t.Errorf("Claude was called with the fallback off")
+	}
+	cfg.AIClaudeFallback = true
+	out, err := c.StructureDeedText(context.Background(), "text")
+	if err != nil || len(out.Giver) != 1 || out.Giver[0].Name != "Claude's answer" {
+		t.Errorf("fallback = %+v, %v", out, err)
+	}
+	if openAI != 2 || claude != 1 {
+		t.Errorf("calls: OpenAI %d, Claude %d", openAI, claude)
 	}
 }
